@@ -1,6 +1,6 @@
 # HAPI Chat for VS Code
 
-A small, independent client for [HAPI](https://github.com/tiann/hapi). Open the **full HAPI website** in VS Code browser tabs, connect to several hubs, and work in parallel. A minimal custom chat panel is also available.
+A small, independent client for [HAPI](https://github.com/tiann/hapi). Open the **full HAPI website in its own VS Code sidebar**, select saved hub profiles in the header, and work in parallel chats. The sidebar follows your editor's light/dark theme. Optional integrated-browser tabs and minimal custom chat panels remain available.
 
 ![Optional custom chat interface with illustrative messages](docs/images/hapi-chat.png)
 
@@ -10,10 +10,12 @@ Install **3ndetz.hapi-chat** from [Open VSX](https://open-vsx.org/extension/3nde
 
 1. Click **HAPI Chat** in the activity bar, or run **HAPI: Add Connection**.
 2. Enter a name, the hub URL and its **access token** (the token used to sign in to HAPI).
-3. Expand a connection and select a session, or run **HAPI: Open Chat**.
-4. The default **Web** mode opens that conversation on the HAPI website inside VS Code's integrated browser. Run **HAPI: New Chat** to open HAPI's own new-session form, with its full options. The agent uses the runner's account, native configuration and project files.
+3. In **Hubs, Folders and Chats**, expand a hub, then a working folder and select a session. **HAPI: Show Chat List** focuses this list; **HAPI: Open Chat** searches sessions by title and directory.
+4. Default **Web** mode opens that conversation in the HAPI sidebar, with the site's own chat interface. Select the saved profile in the header. Run **HAPI: New Chat** to open HAPI's native form; the folder's **+** shortcut preselects its directory. The runner's native account, configuration and project files apply.
 
-The website uses its own normal login and browser storage. Sign in once per hub in the integrated browser. To use a saved extension token, right-click that connection and choose **HAPI: Copy Login Token**, then paste it into **that hub's** login form. The clipboard clears after one minute if unchanged. Tokens are never added to navigation URLs or injected into pages. Login persistence follows VS Code's browser storage setting (`workbench.browser.dataStorage`).
+**Sidebar login is automatic from the saved profile.** Hub keys stay in SecretStorage and the extension host. A private loopback adapter loads the hub's actual website and translates its temporary local login capability into normal hub authentication. Each connection has its own local origin. The hub key never appears in website URLs or sidebar messages; navigation state saves only profile/session metadata. HTTP, streaming and WebSocket requests use the native hub unchanged.
+
+Integrated-browser mode uses its own normal website login. **HAPI: Copy Login Token** explicitly copies a saved key for that hub's login form; clipboard clears after one minute if unchanged. Browser login persistence follows `workbench.browser.dataStorage`. The optional browser mode never puts hub keys into URLs.
 
 Hub URLs may include a proxy prefix, for example `https://hapi.example.com/workflow/1/`. Use the actual hub address, not an HTML landing page listing several hubs. HTTP is supported for local/private networks; use HTTPS for remote connections. Tokens are entered separately and cannot be embedded in URLs.
 
@@ -21,18 +23,20 @@ Hub URLs may include a proxy prefix, for example `https://hapi.example.com/workf
 
 Add as many named connections as you need. Use **HAPI: Switch Connection** to select the default for new/open chat commands. The sidebar lists all saved connections, so you can also open chats or start sessions directly under a particular hub.
 
-Switching the default hub does not redirect existing conversations. Open several sessions, then use VS Code's **Split Editor** or drag tabs into adjacent editor groups to see them side by side. Web mode opens independent browser tabs, including when you open the same conversation again. You can navigate them using HAPI's own interface.
+The sidebar lists sessions as **hub → working folder → chats**, keeping folders on different runner machines separate. Its header shows the current saved profile. Opening another profile preserves other chats; switching conversation tabs selects that chat's profile. Each open website stays loaded independently, and closing its tab does not stop the agent. Drag the **Chat** view to VS Code's secondary sidebar if you want it on the right.
 
-VS Code manages web-tab restoration, and HAPI manages its website's drafts. Custom mode restores panel tabs and composer drafts through extension state. Closing a tab does not stop the agent.
+Sidebar navigation is restored from extension state. Its adapter reuses a saved local port when available, so HAPI can retain website preferences and drafts for that origin; if the port is occupied, a new local origin is used. Integrated-browser and Custom modes still support editor tabs and **Split Editor**. VS Code manages integrated-browser restoration; Custom restores panel tabs and composer drafts.
 
 ## Choose the chat interface
 
 Run **HAPI: Change Chat Mode**, or set **HAPI Chat: Chat Mode** in Settings:
 
-* **`web` (default):** HAPI's actual website in the native integrated browser. Chat features, settings, terminal, uploads and other controls come directly from your hub. Browser features such as microphone and clipboard follow VS Code's normal site permissions. Requires a desktop VS Code build with **Browser: Open Integrated Browser**.
+* **`web` (default):** the hub's actual website in the sidebar, with automatic login from saved profiles. Chat features, settings, terminal and uploads come from your hub. Browser features such as microphone/clipboard still depend on browser permissions.
 * **`custom`:** the extension's minimal REST + SSE chat panel shown above. Useful when you prefer a smaller interface or your editor has no integrated browser.
 
-The setting affects newly opened chats. Existing web/custom tabs remain usable, so both interfaces can be open at the same time. **HAPI: Open Hub Website** always opens the full hub homepage.
+The setting affects newly opened chats. Existing web/custom views remain usable. **HAPI Chat: Web Location** selects `sidebar` (default) or `browser` editor tabs. **HAPI: Open Hub Website** opens the selected homepage in the sidebar; **HAPI: Open in Integrated Browser** is available if a hub's security policy blocks embedding.
+
+**HAPI Chat: Sync Editor Theme** defaults to enabled. Dark and dark high-contrast editors pass a dark browser scheme; light editors pass light. Existing sidebar websites update without reloading or losing drafts. HAPI's **Settings → Display → Appearance mode** should be **System** (its default). Choosing a fixed Light/Dark/OLED mode on the site intentionally overrides the browser scheme. Color palettes stay under HAPI's own settings.
 
 ## Included in custom mode
 
@@ -49,15 +53,19 @@ Only sessions registered with HAPI are controllable here. This extension does no
 
 ## Credentials and compatibility
 
-Extension access tokens use **VS Code SecretStorage**. Connection names/URLs use global extension storage. Extension credentials and JWTs stay in the extension host and are never sent to custom chat webviews or stored in settings, source files or exported tab state. Web mode loads your configured hub as a normal browser website, which owns its authentication and storage. **Copy Login Token** copies a key only when explicitly invoked. Custom chat/draft data is private to the editor, but VS Code restores drafts through webview state; do not use a shared OS account for private chats.
+Hub access keys use **VS Code SecretStorage**. Profile names/URLs and navigation metadata use global extension storage. Keys are never stored in settings, source files or tab state and never sent to sidebar/custom chat scripts. The sidebar's loopback adapter listens only on `127.0.0.1`, rejects mismatched Host/cross-origin login and scopes a random capability to one profile. Only its native authentication endpoint translates that capability to the real key. Native JWTs are returned to HAPI's actual website, as in normal browser login. Custom JWTs remain in the extension host. **Copy Login Token** copies a key only when invoked. Do not use a shared OS account for private chats.
 
-Editing a URL requires entering a token for the new endpoint and closes that connection's custom panels. Removing a connection deletes its SecretStorage token and closes its custom panels. Native browser tabs and website logins are managed by VS Code/HAPI independently; sign out of the site or clear its browser data to remove a website login. Existing tabs for other connections remain open. API requests refuse redirects to avoid forwarding credentials; enter the final hub URL directly. TLS certificates must be trusted. In SSH/remote workspaces the extension runs on the UI side, so the hub must be reachable from the VS Code client computer.
+Editing a URL requires a new token and closes that profile's sidebar websites and custom panels. Removing a profile deletes its SecretStorage key and stops its loopback adapter. Other profiles remain usable. External integrated-browser tabs/logins are managed by VS Code/HAPI independently. API authentication refuses redirects; enter the final hub URL directly. TLS certificates must be trusted. In SSH/remote workspaces the extension and adapter run on the UI side, so the hub must be reachable from the client computer. Hub framing/CSP policies remain in force; use integrated-browser mode if your hub refuses embedded pages.
 
-The session list and optional custom panel use the **native client REST + SSE API**, with no deployment-specific or internal `/cli` routes. Tested against HAPI **0.30.7**, client protocol **1**, including a hub behind a URL prefix. Other hubs implementing that contract can be used without server changes; unfamiliar agent events are tolerated, but future protocol changes may require a custom-client update. Web mode uses the hub's actual website and follows its features directly. Requires VS Code **1.100+** on desktop for custom mode, and a current desktop build with the integrated browser for Web mode; browser-only VS Code is not supported.
+The session list and custom panel use the **native REST + SSE API**, with no internal `/cli` routes. Tested against HAPI **0.30.7**, client protocol **1**, including a prefix proxy. Sidebar auto-login uses the native website token-login flow and requires no hub changes; native website assets/API must be served under the configured hub prefix. Future protocol or frontend changes can require an adapter update. Requires desktop VS Code **1.100+**; optional integrated-browser mode needs a build with that feature. Browser-only VS Code is not supported.
 
 ## Русский
 
-Установка: скачайте VSIX из раздела Releases, затем в VS Code выберите **Extensions: Install from VSIX…**. В боковой панели HAPI добавьте подключение: название, полный адрес центра и его ключ. По умолчанию открывается сам сайт HAPI во встроенном браузере VS Code, со штатными функциями чата. На сайте нужен обычный вход ключом. Команда **HAPI: Copy Login Token** копирует сохранённый ключ выбранного центра для вставки в форму входа. Можно сохранить несколько центров и открыть несколько чатов во вкладках. **HAPI: New Chat** открывает штатную форму нового чата. Команда **HAPI: Change Chat Mode** переключает `Web` и прежний упрощённый интерфейс `Custom`. Переключение центра или режима не меняет уже открытые чаты.
+Установка: скачайте VSIX из Releases, затем выберите **Extensions: Install from VSIX…** и перезагрузите окно VS Code. В панели HAPI добавьте профиль: название, полный адрес центра и ключ. Профили сохраняются, ключ находится в SecretStorage. По умолчанию сайт HAPI открывается в собственной боковой панели, с автоматическим входом из сохранённого профиля. Профиль выбирается в шапке. Несколько чатов переключаются внутри панели, их можно закрывать без остановки агента.
+
+Список ниже сгруппирован как **центр → рабочая папка → чаты**. **HAPI: Show Chat List** открывает список. Кнопка **+** у папки открывает новый чат с этой рабочей папкой. Настройка **HAPI Chat: Sync Editor Theme** включена по умолчанию: сайт подхватывает светлую или тёмную тему VS Code. В самом HAPI оставьте **Settings → Display → Appearance mode → System**, чтобы ручной выбор темы не перекрывал синхронизацию.
+
+**HAPI: Change Chat Mode** переключает `Web` и прежний `Custom`. **HAPI Chat: Web Location → browser** возвращает открытие в обычных вкладках браузера VS Code. У такого браузера отдельный вход на сайт; для него доступна команда **HAPI: Copy Login Token**. Уже открытые чаты других профилей не перенаправляются.
 
 ## Development
 
@@ -69,7 +77,7 @@ npm run test:host
 npm run package
 ```
 
-`test:host` runs an isolated VS Code extension host against two local mock hubs. It checks real integrated-browser navigation, default Web mode, multiple hubs, new-session navigation, explicit clipboard login and mixed Web/Custom tabs, as well as custom chat messaging, approvals and spawning. It does not use your saved connections or stop running agents. `VSCODE_EXECUTABLE_PATH` can point to an existing VS Code executable; otherwise the test runner downloads a stable VS Code build. All test editor data goes in the ignored `.local` directory.
+`test:host` runs an isolated VS Code extension host against two local mock hubs. It checks the real sidebar, grouped folders, profile authentication, independent websites, new-session navigation and mixed Web/Custom views, as well as custom messaging, approvals and spawning. It does not use your saved connections or stop running agents. `VSCODE_EXECUTABLE_PATH` can point to an existing VS Code executable; otherwise the runner downloads a stable build. Test editor data goes in the ignored `.local` directory.
 
 To release, commit/push the source and package a VSIX. Publish the already built VSIX with `ovsx publish file.vsix`, supplying `OVSX_PAT` through a private environment. Never put publishing tokens in source, command arguments or logs. GitHub CI runs tests; publishing is intentionally a separate release action.
 

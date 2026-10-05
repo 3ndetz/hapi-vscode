@@ -19,14 +19,23 @@ async function run() {
         const cb = await manager.connections.save({ name: 'Test Hub B', url: b.url }, b.token);
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
         await manager.connections.select(ca.id); manager.updateSelection();
+        const roots = await manager.getChildren(); const folders = await manager.getChildren(roots.find(r => r.connectionId === ca.id));
+        assert.equal(folders.length, 1); assert.equal(folders[0].directory, '/workspace');
+        assert.equal((await manager.getChildren(folders[0])).length, 2);
+        const beforeLogin = a.authCount;
         await manager.open(ca.id, sa.id);
-        await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`));
+        await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`) && a.authCount > beforeLogin);
         await manager.connections.select(cb.id); manager.updateSelection();
         await manager.open(cb.id, sb.id);
         await manager.newChat(cb.id);
         await manager.openHub(ca.id);
         await waitFor(() => b.requests.some(r => r.route === `sessions/${sb.id}`) && b.requests.some(r => r.route === 'sessions/new') && a.requests.some(r => r.route === ''));
         assert.equal(manager.chats.length, 0, 'Default mode loads actual websites instead of creating custom panels.');
+        assert.equal(manager.sidebar.entries.length, 4, 'Multiple website conversations live in the sidebar.');
+        assert.ok(!manager.sidebar.view.webview.html.includes(a.token));
+        assert.ok(!JSON.stringify(manager.context.globalState.get('sidebarTabs')).includes('token='));
+        await manager.sidebar.receive({ type: 'activate', id: manager.sidebar.entries.find(e => e.connectionId === cb.id && e.sessionId === sb.id).id });
+        assert.equal(manager.connections.selected().id, cb.id, 'The header follows the active conversation profile.');
         assert.ok(!b.requests.some(r => r.route.endsWith('/spawn')), 'Web new chat delegates to the website form.');
         for (const r of [...a.requests, ...b.requests].filter(r => !r.route.startsWith('api/'))) {
             assert.equal(r.auth, undefined); assert.equal(r.query.token, undefined, 'Never pass keys in browser URLs.');
@@ -63,11 +72,13 @@ async function run() {
         chatA.panel.dispose(); assert.ok(manager.chats.includes(chatB)); assert.equal(sa.active, true, 'Closing a panel does not stop its agent.');
         for (const chat of [...manager.chats]) chat.panel.dispose();
         await manager.connections.remove(ca.id); await manager.connections.remove(cb.id);
+        manager.sidebar.remove(ca.id); manager.sidebar.remove(cb.id);
         assert.equal(await manager.context.secrets.get(manager.connections.secretKey(ca.id)), undefined);
         assert.equal(manager.chats.length, 0);
-        console.log('HOST CHECK PASSED: real VS Code integrated browser, parallel websites on 2 hubs, native new-chat form, explicit clipboard login, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
+        console.log('HOST CHECK PASSED: real VS Code sidebar, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
     } finally {
         manager?.connections.dispose();
+        manager?.sidebar.dispose();
         for (const chat of [...manager?.chats || []]) chat.panel.dispose();
         await a.close(); await b.close();
         await configuration.update('chatMode', undefined, vscode.ConfigurationTarget.Global);

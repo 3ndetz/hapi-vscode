@@ -21,7 +21,7 @@ async function mockHub(prefix = '/', token = 'test-key') {
         requests.push({ method: req.method, route, auth: req.headers.authorization, data, query: Object.fromEntries(url.searchParams) });
         const json = (value, status = 200) => { res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(value)); };
         if (req.method === 'GET' && (route === '' || /^sessions\/[a-zA-Z0-9-]+$/.test(route))) {
-            res.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Mock hub website</title><p>Isolated browser navigation fixture</p>'); return;
+            res.writeHead(200, { 'content-type': 'text/html' }).end(`<!doctype html><title>Mock hub website</title><p>Isolated browser navigation fixture</p><script>(async()=>{const accessToken=new URLSearchParams(location.search).get('token');if(accessToken){const r=await fetch(${JSON.stringify(prefix + 'api/auth')},{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({accessToken})});document.body.dataset.authenticated=String(r.ok);}})();</script>`); return;
         }
         if (route === 'api/auth') {
             authCount++;
