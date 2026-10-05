@@ -1,5 +1,5 @@
 'use strict';
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomUUID } = require('node:crypto');
 const { websiteProxy } = require('./proxy');
 const { webUrl } = require('./web');
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,7 +31,7 @@ class Sidebar {
             if (message.action === 'openHub') await m.openHub();
         }
     }
-    async open(connectionId, sessionId, label, directory) {
+    async open(connectionId, sessionId, label, directory, savedInstanceId) {
         const m = this.manager, connection = m.connections.find(connectionId);
         if (!connection) throw Error('This connection was removed.');
         let promise = this.proxies.get(connectionId);
@@ -45,8 +45,9 @@ class Sidebar {
         const proxy = await promise;
         const remote = new URL(webUrl(connection.url, sessionId));
         if (directory) remote.searchParams.set('directory', directory);
-        const id = JSON.stringify([connectionId, sessionId || '', directory || '']);
-        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, title: label || (sessionId === 'new' ? 'New chat' : connection.name), url: proxy.loginUrl(remote.href) });
+        const instanceId = sessionId === 'new' ? savedInstanceId || randomUUID() : undefined;
+        const id = JSON.stringify([connectionId, sessionId || '', directory || '', ...(instanceId ? [instanceId] : [])]);
+        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, title: label || (sessionId === 'new' ? 'New chat' : connection.name), url: proxy.loginUrl(remote.href) });
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
@@ -62,7 +63,7 @@ class Sidebar {
     }
     save() {
         // Persist only navigation metadata, never the loopback login capability.
-        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, title }) => ({ connectionId, sessionId, directory, title })), activeId: this.activeId });
+        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, title }) => ({ connectionId, sessionId, directory, instanceId, title })), activeId: this.activeId });
     }
     async restore() {
         const state = this.manager.context.globalState.get('sidebarTabs');
@@ -70,7 +71,7 @@ class Sidebar {
         const selected = this.manager.connections.selected()?.id;
         for (const entry of state.entries) {
             if (!this.manager.connections.find(entry.connectionId) || entry.sessionId !== undefined && typeof entry.sessionId !== 'string') continue;
-            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined);
+            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined);
         }
         if (this.entries.some(e => e.id === state.activeId)) this.activeId = state.activeId;
         const active = this.entries.find(e => e.id === this.activeId);

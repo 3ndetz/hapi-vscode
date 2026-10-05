@@ -29,6 +29,9 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         sidebar.remove(b.id); assert.equal(sidebar.entries.length, 0); assert.equal(sidebar.proxies.has(b.id), false);
         await values.set('sidebarTabs', restored); await sidebar.restore();
         assert.equal(sidebar.entries.length, 2); assert.equal(sidebar.activeId, first.id); assert.equal(state.selected, a.id);
+        await sidebar.open(a.id, 'new'); const newId = sidebar.activeId; await sidebar.open(a.id, 'new');
+        assert.notEqual(sidebar.activeId, newId, 'New chat always creates a fresh form, even after the old website navigates to its spawned session.');
+        assert.equal(sidebar.entries.length, 4);
         vscode.window.activeColorTheme.kind = 4; sidebar.update(); assert.equal(state.theme, 'light');
     } finally { sidebar.dispose(); connections.dispose(); await hub.close(); }
 });

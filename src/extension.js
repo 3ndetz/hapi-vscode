@@ -66,7 +66,7 @@ class Manager {
     }
     async selectConnection() {
         const selected = await this.pickConnection();
-        if (selected) { await this.connections.select(selected.id); this.updateSelection(); }
+        if (selected) { await this.connections.select(selected.id); this.updateSelection(); if (chatMode(vscode) === 'web' && vscode.workspace.getConfiguration('hapiChat').get('webLocation', 'sidebar') === 'sidebar') await this.openHub(selected.id); }
         return selected;
     }
     async changeChatMode() {
@@ -113,7 +113,10 @@ class Manager {
         this.sidebar.remove(connection.id);
         for (const chat of [...this.chats]) if (chat.connectionId === connection.id) chat.panel.dispose();
         await this.connections.select(connection.id); this.updateSelection();
-        try { await this.connections.client(connection.id).authenticate(); void vscode.window.showInformationMessage(`Connected to ${connection.name}.`); }
+        try {
+            await this.connections.client(connection.id).authenticate(); void vscode.window.showInformationMessage(`Connected to ${connection.name}.`);
+            if (chatMode(vscode) === 'web' && vscode.workspace.getConfiguration('hapiChat').get('webLocation', 'sidebar') === 'sidebar') await this.openHub(connection.id);
+        }
         catch (error) { void vscode.window.showErrorMessage(`${connection.name}: ${error.message} The connection is saved; edit it to retry.`); }
         return connection;
     }
@@ -125,6 +128,8 @@ class Manager {
         for (const chat of [...this.chats]) if (chat.connectionId === id) chat.panel.dispose();
         this.sidebar.remove(id);
         await this.connections.remove(id); this.updateSelection();
+        const active = this.sidebar.entries.find(e => e.id === this.sidebar.activeId);
+        if (active) { await this.connections.select(active.connectionId); this.updateSelection(); }
     }
     getTreeItem(item) { return item; }
     async getChildren(element) {
