@@ -25,6 +25,10 @@ async function run() {
         const beforeLogin = a.authCount;
         await manager.open(ca.id, sa.id);
         await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`) && a.authCount > beforeLogin);
+        await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
+        await waitFor(() => a.requests.some(r => r.route === 'api/sessions' && r.query.scheme === 'light'));
+        await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Dark Modern', vscode.ConfigurationTarget.Global);
+        await waitFor(() => a.requests.some(r => r.route === 'api/sessions' && r.query.scheme === 'dark'));
         await manager.connections.select(cb.id); manager.updateSelection();
         await manager.open(cb.id, sb.id);
         await manager.newChat(cb.id);
@@ -75,13 +79,14 @@ async function run() {
         manager.sidebar.remove(ca.id); manager.sidebar.remove(cb.id);
         assert.equal(await manager.context.secrets.get(manager.connections.secretKey(ca.id)), undefined);
         assert.equal(manager.chats.length, 0);
-        console.log('HOST CHECK PASSED: real VS Code sidebar, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
+        console.log('HOST CHECK PASSED: real VS Code sidebar, live light/dark website sync, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
     } finally {
         manager?.connections.dispose();
         manager?.sidebar.dispose();
         for (const chat of [...manager?.chats || []]) chat.panel.dispose();
         await a.close(); await b.close();
         await configuration.update('chatMode', undefined, vscode.ConfigurationTarget.Global);
+        await vscode.workspace.getConfiguration('workbench').update('colorTheme', undefined, vscode.ConfigurationTarget.Global);
     }
 }
 module.exports = { run };
