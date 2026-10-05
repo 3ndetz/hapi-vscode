@@ -1,8 +1,8 @@
 {
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
-  "description": "Chat with HAPI agents from VS Code. Save multiple hubs and work in parallel chats.",
-  "version": "0.1.0",
+  "description": "Open the full HAPI website in VS Code, save multiple hubs and work in parallel. Optional minimal chat panels.",
+  "version": "0.2.0",
   "publisher": "3ndetz",
   "license": "MIT",
   "engines": { "vscode": "^1.100.0" },
@@ -16,6 +16,19 @@
   "activationEvents": ["onWebviewPanel:hapiChat.chat"],
   "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
   "contributes": {
+    "configuration": {
+      "title": "HAPI Chat",
+      "properties": {
+        "hapiChat.chatMode": {
+          "type": "string",
+          "enum": ["web", "custom"],
+          "enumDescriptions": ["Open the full HAPI website in VS Code's integrated browser.", "Use the extension's minimal native API chat panel."],
+          "default": "web",
+          "scope": "application",
+          "description": "Interface for opening HAPI chats. Existing tabs keep their current interface."
+        }
+      }
+    },
     "commands": [
       { "command": "hapiChat.addConnection", "title": "HAPI: Add Connection", "icon": "$(add)" },
       { "command": "hapiChat.selectConnection", "title": "HAPI: Switch Connection", "icon": "$(plug)" },
@@ -23,7 +36,10 @@
       { "command": "hapiChat.removeConnection", "title": "HAPI: Remove Connection" },
       { "command": "hapiChat.openChat", "title": "HAPI: Open Chat", "icon": "$(comment-discussion)" },
       { "command": "hapiChat.newChat", "title": "HAPI: New Chat", "icon": "$(add)" },
-      { "command": "hapiChat.refresh", "title": "HAPI: Refresh Sessions", "icon": "$(refresh)" }
+      { "command": "hapiChat.refresh", "title": "HAPI: Refresh Sessions", "icon": "$(refresh)" },
+      { "command": "hapiChat.changeChatMode", "title": "HAPI: Change Chat Mode", "icon": "$(browser)" },
+      { "command": "hapiChat.openHub", "title": "HAPI: Open Hub Website", "icon": "$(globe)" },
+      { "command": "hapiChat.copyLoginToken", "title": "HAPI: Copy Login Token" }
     ],
     "viewsContainers": { "activitybar": [{ "id": "hapiChat", "title": "HAPI Chat", "icon": "media/hapi.svg" }] },
     "views": { "hapiChat": [{ "id": "hapiChat.sessions", "name": "Connections and Chats" }] },
@@ -33,12 +49,16 @@
         { "command": "hapiChat.selectConnection", "when": "view == hapiChat.sessions", "group": "navigation@1" },
         { "command": "hapiChat.newChat", "when": "view == hapiChat.sessions", "group": "navigation@2" },
         { "command": "hapiChat.refresh", "when": "view == hapiChat.sessions", "group": "navigation@3" },
-        { "command": "hapiChat.addConnection", "when": "view == hapiChat.sessions", "group": "connections@1" }
+        { "command": "hapiChat.addConnection", "when": "view == hapiChat.sessions", "group": "connections@1" },
+        { "command": "hapiChat.changeChatMode", "when": "view == hapiChat.sessions", "group": "connections@2" },
+        { "command": "hapiChat.openHub", "when": "view == hapiChat.sessions", "group": "connections@3" }
       ],
       "view/item/context": [
         { "command": "hapiChat.newChat", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "inline@1" },
         { "command": "hapiChat.editConnection", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@1" },
-        { "command": "hapiChat.removeConnection", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@2" }
+        { "command": "hapiChat.openHub", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@2" },
+        { "command": "hapiChat.copyLoginToken", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@3" },
+        { "command": "hapiChat.removeConnection", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@4" }
       ]
     }
   },

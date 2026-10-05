@@ -4,6 +4,7 @@ const { Connections } = require('./connections');
 const { Chat } = require('./chat');
 const { normalizeUrl } = require('./client');
 const { title } = require('./messages');
+const { chatMode, openWeb } = require('./web');
 
 class Manager {
     constructor(context) {
@@ -19,7 +20,10 @@ class Manager {
             removeConnection: item => this.remove(item?.connectionId),
             openChat: item => item?.sessionId ? this.open(item.connectionId, item.sessionId) : this.pickChat(),
             newChat: item => this.newChat(item?.connectionId),
-            refresh: () => this.changed.fire(undefined)
+            refresh: () => this.changed.fire(undefined),
+            changeChatMode: () => this.changeChatMode(),
+            openHub: item => this.openHub(item?.connectionId),
+            copyLoginToken: item => this.copyLoginToken(item?.connectionId)
         };
         for (const [name, handler] of Object.entries(commands)) {
             context.subscriptions.push(vscode.commands.registerCommand(`hapiChat.${name}`, async (...args) => {
@@ -33,12 +37,15 @@ class Manager {
                 } else { panel.dispose(); }
             }
         }));
+        context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('hapiChat.chatMode')) this.updateSelection();
+        }));
         context.subscriptions.push({ dispose: () => { for (const chat of [...this.chats]) { chat.dispose(); chat.panel.dispose(); } } });
         this.updateSelection();
     }
     updateSelection() {
         const selected = this.connections.selected();
-        this.status.text = `$(comment-discussion) HAPI${selected ? `: ${selected.name}` : ''}`;
+        this.status.text = `$(comment-discussion) HAPI${selected ? `: ${selected.name}` : ''} (${chatMode(vscode) === 'web' ? 'Web' : 'Custom'})`;
         this.status.tooltip = selected?.url || 'Add a HAPI connection'; this.status.show();
         void vscode.commands.executeCommand('setContext', 'hapiChat.hasConnections', this.connections.list().length > 0);
         this.changed.fire(undefined);
@@ -53,6 +60,30 @@ class Manager {
         const selected = await this.pickConnection();
         if (selected) { await this.connections.select(selected.id); this.updateSelection(); }
         return selected;
+    }
+    async changeChatMode() {
+        const selected = await vscode.window.showQuickPick([
+            { label: 'Web', description: 'Full HAPI website in VS Code (default)', mode: 'web' },
+            { label: 'Custom', description: 'Minimal API chat interface', mode: 'custom' }
+        ], { title: 'HAPI chat interface' });
+        if (selected) await vscode.workspace.getConfiguration('hapiChat').update('chatMode', selected.mode, vscode.ConfigurationTarget.Global);
+    }
+    async openHub(id) {
+        const connection = id ? this.connections.find(id) : this.connections.selected() || await this.pickConnection();
+        if (connection) await openWeb(vscode, connection.url);
+    }
+    async copyLoginToken(id) {
+        const connection = id ? this.connections.find(id) : await this.pickConnection();
+        if (!connection) return;
+        const token = await this.context.secrets.get(this.connections.secretKey(connection.id));
+        if (!token) throw new Error('No saved token. Edit this connection to enter it.');
+        await vscode.env.clipboard.writeText(token);
+        const timer = setTimeout(() => { void (async () => {
+            // Preserve anything the user copied after our token.
+            if (await vscode.env.clipboard.readText() === token) await vscode.env.clipboard.writeText('');
+        })().catch(() => {}); }, 60_000);
+        this.context.subscriptions.push({ dispose: () => clearTimeout(timer) });
+        void vscode.window.showInformationMessage(`Login token for ${connection.name} copied. Paste it into that hub's login form. Clipboard clears after one minute if unchanged.`);
     }
     async configure(id) {
         const old = id ? this.connections.find(id) : undefined;
@@ -77,7 +108,7 @@ class Manager {
         id ||= (await this.pickConnection())?.id;
         if (!id) return;
         const connection = this.connections.find(id);
-        if (await vscode.window.showWarningMessage(`Remove ${connection.name} and its saved token? Open tabs for this connection will close.`, { modal: true }, 'Remove') !== 'Remove') return;
+        if (await vscode.window.showWarningMessage(`Remove ${connection.name} and its saved token? Custom chat panels will close. Website tabs and logins are managed separately.`, { modal: true }, 'Remove') !== 'Remove') return;
         for (const chat of [...this.chats]) if (chat.connectionId === id) chat.panel.dispose();
         await this.connections.remove(id); this.updateSelection();
     }
@@ -105,12 +136,20 @@ class Manager {
         if (!connection) return;
         const result = await this.connections.client(connection.id).sessions();
         const selected = await vscode.window.showQuickPick((result.sessions || []).map(s => ({ label: title(s), description: s.active ? 'online' : 'offline', detail: s.metadata?.path, session: s })), { title: `Open chat · ${connection.name}`, matchOnDescription: true, matchOnDetail: true });
-        if (selected) this.open(connection.id, selected.session.id);
+        if (selected) await this.open(connection.id, selected.session.id);
     }
     attach(panel, connectionId, sessionId, draft) {
         const chat = new Chat(this, connectionId, sessionId, panel, draft); this.chats.push(chat); return chat;
     }
     open(connectionId, sessionId) {
+        if (chatMode(vscode) === 'web') {
+            const connection = this.connections.find(connectionId);
+            if (!connection) throw new Error('This connection was removed.');
+            return openWeb(vscode, connection.url, sessionId);
+        }
+        return this.openCustom(connectionId, sessionId);
+    }
+    openCustom(connectionId, sessionId) {
         const existing = this.chats.find(c => c.connectionId === connectionId && c.sessionId === sessionId);
         if (existing) { existing.panel.reveal(); return existing; }
         const panel = vscode.window.createWebviewPanel('hapiChat.chat', 'HAPI Chat', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
@@ -119,6 +158,7 @@ class Manager {
     async newChat(id) {
         const connection = id ? this.connections.find(id) : this.connections.selected() || await this.pickConnection();
         if (!connection) return;
+        if (chatMode(vscode) === 'web') { await openWeb(vscode, connection.url, 'new'); return; }
         const client = this.connections.client(connection.id);
         const { machines = [] } = await client.machines();
         const online = machines.filter(m => m.active);
@@ -139,7 +179,7 @@ class Manager {
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Starting HAPI chat…' }, async () => {
             const result = await client.spawn(m.id, directory.trim(), agent);
             if (result.type !== 'success' || typeof result.sessionId !== 'string') throw new Error('The runner did not return a session. Check its connection and agent login.');
-            this.open(connection.id, result.sessionId); this.changed.fire(undefined);
+            await this.open(connection.id, result.sessionId); this.changed.fire(undefined);
         });
     }
     async answer(request) {

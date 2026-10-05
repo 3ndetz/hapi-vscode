@@ -7,6 +7,8 @@ const waitFor = async predicate => {
     throw new Error('Timed out waiting for live chat updates.');
 };
 async function run() {
+    const configuration = vscode.workspace.getConfiguration('hapiChat');
+    assert.equal(configuration.get('chatMode'), 'web', 'The full website is the default interface.');
     const a = await mockHub('/workflow/1/', 'isolated-key-a'), b = await mockHub('/hub/', 'isolated-key-b');
     let manager;
     try {
@@ -17,6 +19,22 @@ async function run() {
         const cb = await manager.connections.save({ name: 'Test Hub B', url: b.url }, b.token);
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
         await manager.connections.select(ca.id); manager.updateSelection();
+        await manager.open(ca.id, sa.id);
+        await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`));
+        await manager.connections.select(cb.id); manager.updateSelection();
+        await manager.open(cb.id, sb.id);
+        await manager.newChat(cb.id);
+        await manager.openHub(ca.id);
+        await waitFor(() => b.requests.some(r => r.route === `sessions/${sb.id}`) && b.requests.some(r => r.route === 'sessions/new') && a.requests.some(r => r.route === ''));
+        assert.equal(manager.chats.length, 0, 'Default mode loads actual websites instead of creating custom panels.');
+        assert.ok(!b.requests.some(r => r.route.endsWith('/spawn')), 'Web new chat delegates to the website form.');
+        for (const r of [...a.requests, ...b.requests].filter(r => !r.route.startsWith('api/'))) {
+            assert.equal(r.auth, undefined); assert.equal(r.query.token, undefined, 'Never pass keys in browser URLs.');
+        }
+        await manager.copyLoginToken(cb.id);
+        assert.equal(await vscode.env.clipboard.readText(), b.token, 'Copy the explicitly chosen profile key.');
+        await vscode.env.clipboard.writeText('');
+        await configuration.update('chatMode', 'custom', vscode.ConfigurationTarget.Global);
         const chatA = manager.open(ca.id, sa.id), chatB = manager.open(cb.id, sb.id), chatC = manager.open(ca.id, second.id);
         assert.equal(manager.chats.length, 3);
         assert.equal(manager.open(ca.id, sa.id), chatA, 'Repeated open focuses the existing panel.');
@@ -38,16 +56,21 @@ async function run() {
         assert.equal(sa.agentState.requests.approval, undefined);
         const created = await manager.connections.client(cb.id).spawn('machine', '/workspace/other', 'codex');
         const newChat = manager.open(cb.id, created.sessionId); await newChat.refresh(); assert.equal(newChat.session.active, true);
+        await configuration.update('chatMode', 'web', vscode.ConfigurationTarget.Global);
+        await manager.open(cb.id, created.sessionId);
+        await waitFor(() => b.requests.some(r => r.route === `sessions/${created.sessionId}`));
+        assert.ok(manager.chats.includes(newChat), 'Switching interfaces preserves existing custom panels.');
         chatA.panel.dispose(); assert.ok(manager.chats.includes(chatB)); assert.equal(sa.active, true, 'Closing a panel does not stop its agent.');
         for (const chat of [...manager.chats]) chat.panel.dispose();
         await manager.connections.remove(ca.id); await manager.connections.remove(cb.id);
         assert.equal(await manager.context.secrets.get(manager.connections.secretKey(ca.id)), undefined);
         assert.equal(manager.chats.length, 0);
-        console.log('HOST CHECK PASSED: real VS Code, 3 parallel panels, 2 hubs, live messages, approvals, native spawn, SecretStorage and cleanup.');
+        console.log('HOST CHECK PASSED: real VS Code integrated browser, parallel websites on 2 hubs, native new-chat form, explicit clipboard login, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
     } finally {
         manager?.connections.dispose();
         for (const chat of [...manager?.chats || []]) chat.panel.dispose();
         await a.close(); await b.close();
+        await configuration.update('chatMode', undefined, vscode.ConfigurationTarget.Global);
     }
 }
 module.exports = { run };
