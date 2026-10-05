@@ -4,9 +4,9 @@ const frames = new Map(); const profile = document.getElementById('profile');
 document.addEventListener('click', event => { const action = event.target.closest('[data-action]')?.dataset.action; if (action) api.postMessage({ type: 'action', action }); });
 profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: profile.value }));
 window.addEventListener('message', event => {
-    // VS Code's trusted preload parent delivers extension messages. A hub
-    // iframe is a different source and cannot replace profiles or navigation.
-    if (event.source && event.source !== window && event.source !== window.parent || event.data?.type !== 'state') return;
+    // VS Code forwards messages from its preload window, whose WindowProxy
+    // differs between runtimes. Trust the webview origin, never a hub iframe.
+    if (event.origin !== window.origin || event.data?.type !== 'state') return;
     const state = event.data;
     document.documentElement.style.colorScheme = state.syncTheme ? state.theme : 'normal';
     profile.replaceChildren(...state.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name; return option; }));
