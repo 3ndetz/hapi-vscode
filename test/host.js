@@ -33,7 +33,8 @@ async function run() {
         } };
         try {
             sa.active = false;
-            const sessions = await manager.getChildren(folders[0]);
+            const offlineFolders = await manager.getChildren(roots.find(item => item.connectionId === ca.id));
+            const sessions = await manager.getChildren(offlineFolders[0]);
             const offline = sessions.find(item => item.sessionId === sa.id);
             assert.equal(offline.description, 'offline');
             await vscode.commands.executeCommand(offline.command.command, ...offline.command.arguments);
