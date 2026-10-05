@@ -11,7 +11,7 @@ class Sidebar {
         view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.manager.context.extensionUri, 'media')] };
         const nonce = randomBytes(24).toString('base64');
         const asset = name => escape(view.webview.asWebviewUri(vscode.Uri.joinPath(this.manager.context.extensionUri, 'media', name)).toString());
-        view.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; style-src ${escape(view.webview.cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('sidebar.css')}"></head><body><header><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select><button data-action="newChat" title="New chat">＋</button><button data-action="browser" title="Open in integrated browser">↗</button></header><nav id="tabs" aria-label="Open HAPI chats"></nav><section id="empty"><p>Select a chat in the folder list below, or start a new chat.</p><button data-action="addConnection">Add connection</button><button data-action="openHub">Open selected hub</button></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
+        view.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; style-src ${escape(view.webview.cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('sidebar.css')}"></head><body><header><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select><button data-action="newChat" title="New chat" aria-label="New chat">＋</button><button data-action="showChats" title="Connections and folders" aria-label="Connections and folders">☰</button><button data-action="browser" title="Open in integrated browser" aria-label="Open in integrated browser">↗</button></header><nav aria-label="Open HAPI chats"><label for="conversation">Chat</label><select id="conversation" aria-label="Open chat"></select><button id="close-chat" title="Close this chat" aria-label="Close this chat">×</button><button data-action="reloadChat" title="Reload this website" aria-label="Reload this website">↻</button></nav><section id="empty"><h2>Your chats open here</h2><p>Select a chat in HAPI Connections on the left, or start a new chat.</p><button data-action="showChats">Connections and folders</button><button data-action="newChat">New chat</button></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
         view.onDidDispose(() => { this.view = undefined; }, undefined, this.manager.context.subscriptions);
         view.onDidChangeVisibility(() => { if (view.visible) this.update(); }, undefined, this.manager.context.subscriptions);
@@ -29,6 +29,8 @@ class Sidebar {
             if (message.action === 'newChat') await m.newChat();
             if (message.action === 'addConnection') await m.configure();
             if (message.action === 'openHub') await m.openHub();
+            if (message.action === 'showChats') await m.vscode.commands.executeCommand('hapiChat.sessions.focus');
+            if (message.action === 'reloadChat' && active) { active.reload = (active.reload || 0) + 1; this.update(); }
         }
     }
     async open(connectionId, sessionId, label, directory, savedInstanceId) {
@@ -58,7 +60,7 @@ class Sidebar {
         // A resolved view can reveal itself, including after being moved or hidden.
         if (!this.view) {
             const commands = await this.manager.vscode.commands.getCommands(true);
-            const command = ['hapiChat.web.focus', 'hapiChat.web.open', 'workbench.view.extension.hapiChat'].find(id => commands.includes(id));
+            const command = ['hapiChat.conversation.focus', 'hapiChat.conversation.open', 'workbench.view.extension.hapiChatConversations'].find(id => commands.includes(id));
             const unavailable = () => new Error('The HAPI Chat sidebar is not available in this window. Run Developer: Reload Window to load the installed extension, then open HAPI Chat again.');
             if (!command) throw unavailable();
             await this.manager.vscode.commands.executeCommand(command);

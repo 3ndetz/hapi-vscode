@@ -1,12 +1,12 @@
 {
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
-  "description": "HAPI chats in a dedicated sidebar, with saved profiles, automatic login, folder groups and editor theme sync.",
-  "version": "0.3.2",
+  "description": "HAPI connections and folders on the left, full-height website chats on the right, with saved profiles and automatic login.",
+  "version": "0.4.0",
   "icon": "media/icon.png",
   "publisher": "3ndetz",
   "license": "MIT",
-  "engines": { "vscode": "^1.100.0" },
+  "engines": { "vscode": "^1.106.0" },
   "categories": ["AI", "Other"],
   "keywords": ["hapi", "codex", "claude", "chat", "agents"],
   "repository": { "type": "git", "url": "https://github.com/3ndetz/hapi-vscode.git" },
@@ -14,7 +14,7 @@
   "bugs": { "url": "https://github.com/3ndetz/hapi-vscode/issues" },
   "main": "./src/extension.js",
   "extensionKind": ["ui"],
-  "activationEvents": ["onWebviewPanel:hapiChat.chat", "onView:hapiChat.web"],
+  "activationEvents": ["onWebviewPanel:hapiChat.chat", "onView:hapiChat.conversation"],
   "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
   "contributes": {
     "configuration": {
@@ -28,7 +28,7 @@
           "scope": "application",
           "description": "Interface for opening HAPI chats. Existing tabs keep their current interface."
         },
-        "hapiChat.webLocation": { "type": "string", "enum": ["sidebar", "browser"], "default": "sidebar", "scope": "application", "description": "Open Web chats in the HAPI sidebar or in integrated-browser editor tabs. Sidebar uses the saved profile for automatic sign-in; browser tabs use normal website login." },
+        "hapiChat.webLocation": { "type": "string", "enum": ["sidebar", "browser"], "default": "sidebar", "scope": "application", "description": "Open Web chats in the full-height HAPI right sidebar or in integrated-browser editor tabs. Sidebar uses the saved profile for automatic sign-in; browser tabs use normal website login." },
         "hapiChat.syncEditorTheme": { "type": "boolean", "default": true, "scope": "application", "description": "Pass VS Code's light/dark color scheme to sidebar websites. Keep HAPI Appearance set to System to follow the editor." }
       }
     },
@@ -44,18 +44,26 @@
       { "command": "hapiChat.openHub", "title": "HAPI: Open Hub Website", "icon": "$(globe)" },
       { "command": "hapiChat.openBrowser", "title": "HAPI: Open in Integrated Browser", "icon": "$(link-external)" },
       { "command": "hapiChat.showChats", "title": "HAPI: Show Chat List", "icon": "$(list-tree)" },
+      { "command": "hapiChat.showChatPanel", "title": "HAPI: Show Right Chat Panel", "icon": "$(comment-discussion)" },
       { "command": "hapiChat.copyLoginToken", "title": "HAPI: Copy Login Token" }
     ],
-    "viewsContainers": { "activitybar": [{ "id": "hapiChat", "title": "HAPI Chat", "icon": "media/hapi.svg" }] },
-    "views": { "hapiChat": [{ "id": "hapiChat.web", "name": "Chat", "type": "webview" }, { "id": "hapiChat.sessions", "name": "Hubs, Folders and Chats" }] },
+    "viewsContainers": {
+      "activitybar": [{ "id": "hapiChat", "title": "HAPI Connections", "icon": "media/hapi.svg" }],
+      "secondarySidebar": [{ "id": "hapiChatConversations", "title": "HAPI Chats", "icon": "media/hapi.svg" }]
+    },
+    "views": {
+      "hapiChat": [{ "id": "hapiChat.sessions", "name": "Connections and Folders" }],
+      "hapiChatConversations": [{ "id": "hapiChat.conversation", "name": "Chat", "type": "webview" }]
+    },
     "viewsWelcome": [{ "view": "hapiChat.sessions", "contents": "Connect to a HAPI hub to open agent chats.\n[Add Connection](command:hapiChat.addConnection)", "when": "!hapiChat.hasConnections" }],
     "menus": {
       "view/title": [
-        { "command": "hapiChat.newChat", "when": "view == hapiChat.web", "group": "navigation@1" },
-        { "command": "hapiChat.showChats", "when": "view == hapiChat.web", "group": "navigation@2" },
+        { "command": "hapiChat.newChat", "when": "view == hapiChat.conversation", "group": "navigation@1" },
+        { "command": "hapiChat.showChats", "when": "view == hapiChat.conversation", "group": "navigation@2" },
         { "command": "hapiChat.selectConnection", "when": "view == hapiChat.sessions", "group": "navigation@1" },
         { "command": "hapiChat.newChat", "when": "view == hapiChat.sessions", "group": "navigation@2" },
         { "command": "hapiChat.refresh", "when": "view == hapiChat.sessions", "group": "navigation@3" },
+        { "command": "hapiChat.showChatPanel", "when": "view == hapiChat.sessions", "group": "navigation@4" },
         { "command": "hapiChat.addConnection", "when": "view == hapiChat.sessions", "group": "connections@1" },
         { "command": "hapiChat.changeChatMode", "when": "view == hapiChat.sessions", "group": "connections@2" },
         { "command": "hapiChat.openHub", "when": "view == hapiChat.sessions", "group": "connections@3" }

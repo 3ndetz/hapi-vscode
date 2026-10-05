@@ -23,7 +23,7 @@ async function run() {
         assert.equal(folders.length, 1); assert.equal(folders[0].directory, '/workspace');
         assert.equal((await manager.getChildren(folders[0])).length, 2);
         const beforeLogin = a.authCount;
-        const unavailable = new Set(['hapiChat.web.focus']);
+        const unavailable = new Set(['hapiChat.conversation.focus']);
         manager.vscode = { ...vscode, commands: { ...vscode.commands,
             getCommands: async (...args) => (await vscode.commands.getCommands(...args)).filter(id => !unavailable.has(id)),
             executeCommand: (command, ...args) => {
@@ -39,11 +39,15 @@ async function run() {
             assert.equal(offline.description, 'offline');
             await vscode.commands.executeCommand(offline.command.command, ...offline.command.arguments);
             await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`) && a.authCount > beforeLogin);
-            unavailable.add('hapiChat.web.open');
+            unavailable.add('hapiChat.conversation.open');
             await vscode.commands.executeCommand(offline.command.command, ...offline.command.arguments);
             assert.equal(manager.sidebar.entries.length, 1, 'Reopening an offline chat uses the existing sidebar without generated commands.');
         } finally { manager.vscode = vscode; sa.active = true; }
         await waitFor(() => a.requests.some(r => r.route === `sessions/${sa.id}`) && a.authCount > beforeLogin);
+        await vscode.commands.executeCommand('workbench.action.closeSidebar');
+        assert.equal(manager.sidebar.view.visible, true, 'Closing the primary configuration sidebar leaves the separate right chat visible.');
+        await vscode.commands.executeCommand('hapiChat.sessions.focus');
+        assert.equal(manager.sidebar.view.visible, true, 'The folder list and chat can be visible independently on opposite sides.');
         await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
         await waitFor(() => a.requests.some(r => r.route === 'api/sessions' && r.query.scheme === 'light'));
         await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Dark Modern', vscode.ConfigurationTarget.Global);
@@ -104,7 +108,7 @@ async function run() {
         manager.sidebar.remove(ca.id); manager.sidebar.remove(cb.id);
         assert.equal(await manager.context.secrets.get(manager.connections.secretKey(ca.id)), undefined);
         assert.equal(manager.chats.length, 0);
-        console.log('HOST CHECK PASSED: offline tree chats with missing focus commands, real VS Code sidebar, live light/dark website sync, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
+        console.log('HOST CHECK PASSED: separate left configuration and right chat sidebar, offline tree chats with missing focus commands, live light/dark website sync, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
     } finally {
         manager?.connections.dispose();
         manager?.sidebar.dispose();

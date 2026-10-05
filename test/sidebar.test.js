@@ -7,20 +7,20 @@ test('sidebar opening survives missing focus commands and preserves the view loc
     let calls = [], shown = 0;
     const view = { show: preserveFocus => { assert.equal(preserveFocus, false); shown++; } };
     const vscode = { commands: {
-        getCommands: async () => ['hapiChat.web.open', 'workbench.view.extension.hapiChat'],
+        getCommands: async () => ['hapiChat.conversation.open', 'workbench.view.extension.hapiChatConversations'],
         executeCommand: async command => { calls.push(command); sidebar.view = view; }
     } };
     const sidebar = new Sidebar({ vscode });
     await sidebar.reveal();
-    assert.deepEqual(calls, ['hapiChat.web.open']); assert.equal(shown, 1);
+    assert.deepEqual(calls, ['hapiChat.conversation.open']); assert.equal(shown, 1);
     vscode.commands.getCommands = async () => { throw Error('Existing views must not depend on generated commands.'); };
     await sidebar.reveal(); assert.equal(shown, 2);
     sidebar.view = undefined; calls = [];
-    vscode.commands.getCommands = async () => ['workbench.view.extension.hapiChat'];
-    await sidebar.reveal(); assert.deepEqual(calls, ['workbench.view.extension.hapiChat']);
+    vscode.commands.getCommands = async () => ['workbench.view.extension.hapiChatConversations'];
+    await sidebar.reveal(); assert.deepEqual(calls, ['workbench.view.extension.hapiChatConversations']);
     sidebar.view = undefined; calls = [];
-    vscode.commands.getCommands = async () => ['hapiChat.web.focus', 'hapiChat.web.open'];
-    await sidebar.reveal(); assert.deepEqual(calls, ['hapiChat.web.focus']);
+    vscode.commands.getCommands = async () => ['hapiChat.conversation.focus', 'hapiChat.conversation.open'];
+    await sidebar.reveal(); assert.deepEqual(calls, ['hapiChat.conversation.focus']);
     sidebar.view = undefined;
     vscode.commands.getCommands = async () => [];
     await assert.rejects(sidebar.reveal(), /Developer: Reload Window/);
@@ -54,6 +54,10 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         await sidebar.open(a.id, 'new'); const newId = sidebar.activeId; await sidebar.open(a.id, 'new');
         assert.notEqual(sidebar.activeId, newId, 'New chat always creates a fresh form, even after the old website navigates to its spawned session.');
         assert.equal(sidebar.entries.length, 4);
+        const active = sidebar.entries.find(entry => entry.id === sidebar.activeId);
+        await sidebar.receive({ type: 'action', action: 'reloadChat' });
+        assert.equal(active.reload, 1); assert.equal(sidebar.entries.length, 4);
+        assert.ok(!JSON.stringify(values.get('sidebarTabs')).includes('reload'), 'Reload state is transient; stored chat navigation stays unchanged.');
         vscode.window.activeColorTheme.kind = 4; sidebar.update(); assert.equal(state.theme, 'light');
     } finally { sidebar.dispose(); connections.dispose(); await hub.close(); }
 });

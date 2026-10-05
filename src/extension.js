@@ -12,7 +12,7 @@ class Manager {
     constructor(context) {
         this.context = context; this.vscode = vscode; this.connections = new Connections(context); this.chats = [];
         this.sidebar = new Sidebar(this);
-        context.subscriptions.push(this.sidebar, vscode.window.registerWebviewViewProvider('hapiChat.web', this.sidebar, { webviewOptions: { retainContextWhenHidden: true } }));
+        context.subscriptions.push(this.sidebar, vscode.window.registerWebviewViewProvider('hapiChat.conversation', this.sidebar, { webviewOptions: { retainContextWhenHidden: true } }));
         this.changed = new vscode.EventEmitter(); this.onDidChangeTreeData = this.changed.event;
         this.status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
         this.status.command = 'hapiChat.selectConnection'; context.subscriptions.push(this.status, this.changed, this.connections);
@@ -29,6 +29,7 @@ class Manager {
             openHub: item => this.openHub(item?.connectionId),
             openBrowser: () => this.openBrowser(),
             showChats: () => vscode.commands.executeCommand('hapiChat.sessions.focus'),
+            showChatPanel: () => this.sidebar.reveal(),
             copyLoginToken: item => this.copyLoginToken(item?.connectionId)
         };
         for (const [name, handler] of Object.entries(commands)) {

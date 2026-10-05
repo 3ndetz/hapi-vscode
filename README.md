@@ -1,6 +1,6 @@
 # HAPI Chat for VS Code
 
-A small, independent client for [HAPI](https://github.com/tiann/hapi). Open the **full HAPI website in its own VS Code sidebar**, select saved hub profiles in the header, and work in parallel chats. The sidebar follows your editor's light/dark theme. Optional integrated-browser tabs and minimal custom chat panels remain available.
+A small, independent client for [HAPI](https://github.com/tiann/hapi). **Connections and folder navigation live on the left. Full HAPI website chats open separately in the right sidebar, using its full height.** Select saved hub profiles and switch between independent conversations in the compact header. The chat follows your editor's light/dark theme. Optional integrated-browser tabs and minimal custom chat panels remain available.
 
 ![Optional custom chat interface with illustrative messages](docs/images/hapi-chat.png)
 
@@ -10,10 +10,10 @@ Install **3ndetz.hapi-chat** from [Open VSX](https://open-vsx.org/extension/3nde
 
 After installing an update, run **Developer: Reload Window** so that the current window loads the new sidebar contribution. If VS Code reports that the HAPI sidebar is unavailable, reload the window and open the chat again. Reloading keeps saved profiles and tokens.
 
-1. Click **HAPI Chat** in the activity bar, or run **HAPI: Add Connection**.
+1. Click **HAPI Connections** in the left activity bar, or run **HAPI: Add Connection**. Add/edit/remove profiles here; the folder list uses the whole left container.
 2. Enter a name, the hub URL and its **access token** (the token used to sign in to HAPI).
-3. In **Hubs, Folders and Chats**, expand a hub, then a working folder and select a session. **HAPI: Show Chat List** focuses this list; **HAPI: Open Chat** searches sessions by title and directory.
-4. Default **Web** mode opens that conversation in the HAPI sidebar, with the site's own chat interface. Select the saved profile in the header. Run **HAPI: New Chat** to open HAPI's native form; the folder's **+** shortcut preselects its directory. The runner's native account, configuration and project files apply.
+3. In **Connections and Folders**, expand a hub, then a working folder and select a session. **HAPI: Show Chat List** focuses this list; **HAPI: Open Chat** searches sessions by title and directory.
+4. Default **Web** mode opens that conversation in **HAPI Chats** on the right, with the site's own chat interface. **HAPI: Show Right Chat Panel** reveals it. The site uses all the height below two compact header rows. Select the saved profile in **Hub** and an open conversation in **Chat**. Run **HAPI: New Chat** to open HAPI's native form; the folder's **+** shortcut preselects its directory. The runner's native account, configuration and project files apply.
 
 **Sidebar login is automatic from the saved profile.** Hub keys stay in SecretStorage and the extension host. A private loopback adapter loads the hub's actual website and translates its temporary local login capability into normal hub authentication. Each connection has its own local origin. The hub key never appears in website URLs or sidebar messages; navigation state saves only profile/session metadata. HTTP, streaming and WebSocket requests use the native hub unchanged.
 
@@ -25,7 +25,7 @@ Hub URLs may include a proxy prefix, for example `https://hapi.example.com/workf
 
 Add as many named connections as you need. Use **HAPI: Switch Connection** to select the default for new/open chat commands. The sidebar lists all saved connections, so you can also open chats or start sessions directly under a particular hub.
 
-The sidebar lists sessions as **hub → working folder → chats**, keeping folders on different runner machines separate. Its header shows the current saved profile. Opening another profile preserves other chats; switching conversation tabs selects that chat's profile. Each open website stays loaded independently, and closing its tab does not stop the agent. Drag the **Chat** view to VS Code's secondary sidebar if you want it on the right.
+The left sidebar lists sessions as **hub → working folder → chats**, keeping folders on different runner machines separate. The independent right chat header shows the current saved profile. Opening another profile preserves other chats; the **Chat** selector switches conversations and selects that chat's profile. Each open website stays loaded independently; **×** closes the selected website without stopping its agent. **↻** reloads only that website if it needs a fresh sign-in. Switching between the left configuration and an editor does not hide the right chat. Both containers can still be moved using VS Code's normal view controls.
 
 Sidebar navigation is restored from extension state. Its adapter reuses a saved local port when available, so HAPI can retain website preferences and drafts for that origin; if the port is occupied, a new local origin is used. Integrated-browser and Custom modes still support editor tabs and **Split Editor**. VS Code manages integrated-browser restoration; Custom restores panel tabs and composer drafts.
 
@@ -59,11 +59,11 @@ Hub access keys use **VS Code SecretStorage**. Profile names/URLs and navigation
 
 Editing a URL requires a new token and closes that profile's sidebar websites and custom panels. Removing a profile deletes its SecretStorage key and stops its loopback adapter. Other profiles remain usable. External integrated-browser tabs/logins are managed by VS Code/HAPI independently. API authentication refuses redirects; enter the final hub URL directly. TLS certificates must be trusted. In SSH/remote workspaces the extension and adapter run on the UI side, so the hub must be reachable from the client computer. Hub framing/CSP policies remain in force; use integrated-browser mode if your hub refuses embedded pages.
 
-The session list and custom panel use the **native REST + SSE API**, with no internal `/cli` routes. Tested against HAPI **0.30.7**, client protocol **1**, including a prefix proxy. Sidebar auto-login uses the native website token-login flow and requires no hub changes; native website assets/API must be served under the configured hub prefix. Future protocol or frontend changes can require an adapter update. Requires desktop VS Code **1.100+**; optional integrated-browser mode needs a build with that feature. Browser-only VS Code is not supported.
+The session list and custom panel use the **native REST + SSE API**, with no internal `/cli` routes. Tested against HAPI **0.30.7**, client protocol **1**, including a prefix proxy. Sidebar auto-login uses the native website token-login flow and requires no hub changes; native website assets/API must be served under the configured hub prefix. Future protocol or frontend changes can require an adapter update. Requires desktop VS Code **1.106+**, which supports native secondary-sidebar containers; optional integrated-browser mode needs a build with that feature. Browser-only VS Code is not supported.
 
 ## Русский
 
-Установка: скачайте VSIX из Releases, затем выберите **Extensions: Install from VSIX…** и перезагрузите окно VS Code. В панели HAPI добавьте профиль: название, полный адрес центра и ключ. Профили сохраняются, ключ находится в SecretStorage. По умолчанию сайт HAPI открывается в собственной боковой панели, с автоматическим входом из сохранённого профиля. Профиль выбирается в шапке. Несколько чатов переключаются внутри панели, их можно закрывать без остановки агента.
+Установка: скачайте VSIX из Releases, затем выберите **Extensions: Install from VSIX…** и перезагрузите окно VS Code. В **HAPI Connections** слева настройте профили и выберите чат в списке папок. Сам чат откроется отдельно в **HAPI Chats** справа, на всю высоту панели. Ключ хранится в SecretStorage, вход автоматический. В шапке **Hub** выбирается сохранённый профиль, **Chat** переключает открытые чаты. Кнопка **×** закрывает выбранный сайт без остановки агента, **↻** перезагружает его. Команда **HAPI: Show Right Chat Panel** показывает правую панель. Нужен VS Code 1.106 или новее.
 
 Список ниже сгруппирован как **центр → рабочая папка → чаты**. **HAPI: Show Chat List** открывает список. Кнопка **+** у папки открывает новый чат с этой рабочей папкой. Настройка **HAPI Chat: Sync Editor Theme** включена по умолчанию: сайт подхватывает светлую или тёмную тему VS Code. В самом HAPI оставьте **Settings → Display → Appearance mode → System**, чтобы ручной выбор темы не перекрывал синхронизацию.
 

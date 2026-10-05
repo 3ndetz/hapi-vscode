@@ -1,8 +1,12 @@
 'use strict';
 const api = acquireVsCodeApi();
 const frames = new Map(); const profile = document.getElementById('profile');
+const conversation = document.getElementById('conversation');
+const close = document.getElementById('close-chat');
 document.addEventListener('click', event => { const action = event.target.closest('[data-action]')?.dataset.action; if (action) api.postMessage({ type: 'action', action }); });
 profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: profile.value }));
+conversation.addEventListener('change', () => api.postMessage({ type: 'activate', id: conversation.value }));
+close.addEventListener('click', () => api.postMessage({ type: 'close', id: conversation.value }));
 window.addEventListener('message', event => {
     // VS Code forwards messages from its preload window, whose WindowProxy
     // differs between runtimes. Trust the webview origin, never a hub iframe.
@@ -13,7 +17,7 @@ window.addEventListener('message', event => {
     profile.value = state.selected || '';
     const ids = new Set(state.entries.map(e => e.id));
     for (const [id, frame] of frames) if (!ids.has(id)) { frame.remove(); frames.delete(id); }
-    document.getElementById('tabs').replaceChildren(...state.entries.map(entry => {
+    conversation.replaceChildren(...state.entries.map(entry => {
         let frame = frames.get(entry.id);
         if (!frame) {
             frame = document.createElement('iframe'); frame.title = entry.title;
@@ -21,13 +25,13 @@ window.addEventListener('message', event => {
             frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox');
             frame.src = entry.url; frames.set(entry.id, frame); document.getElementById('frames').append(frame);
         }
+        if (frame.dataset.reload !== String(entry.reload || 0)) { frame.dataset.reload = String(entry.reload || 0); if (entry.reload) frame.src = entry.url; }
         frame.hidden = entry.id !== state.activeId;
-        const tab = document.createElement('div'); tab.className = `tab${entry.id === state.activeId ? ' active' : ''}`;
-        const button = document.createElement('button'); button.textContent = entry.title; button.title = `${state.profiles.find(p => p.id === entry.connectionId)?.name || ''}: ${entry.title}`;
-        button.onclick = () => api.postMessage({ type: 'activate', id: entry.id });
-        const close = document.createElement('button'); close.textContent = '×'; close.setAttribute('aria-label', `Close ${entry.title}`); close.onclick = () => api.postMessage({ type: 'close', id: entry.id });
-        tab.append(button, close); return tab;
+        const option = document.createElement('option'); option.value = entry.id;
+        option.textContent = `${entry.title} · ${state.profiles.find(p => p.id === entry.connectionId)?.name || ''}`;
+        return option;
     }));
+    conversation.value = state.activeId || ''; conversation.disabled = close.disabled = state.entries.length === 0;
     document.getElementById('empty').hidden = state.entries.length > 0;
 });
 api.postMessage({ type: 'ready' });
