@@ -1,0 +1,52 @@
+{
+  "name": "hapi-chat",
+  "displayName": "HAPI Chat",
+  "description": "Chat with HAPI agents from VS Code. Save multiple hubs and work in parallel chats.",
+  "version": "0.1.0",
+  "publisher": "3ndetz",
+  "license": "MIT",
+  "engines": { "vscode": "^1.100.0" },
+  "categories": ["AI", "Other"],
+  "keywords": ["hapi", "codex", "claude", "chat", "agents"],
+  "repository": { "type": "git", "url": "https://github.com/3ndetz/hapi-vscode.git" },
+  "homepage": "https://github.com/3ndetz/hapi-vscode#readme",
+  "bugs": { "url": "https://github.com/3ndetz/hapi-vscode/issues" },
+  "main": "./src/extension.js",
+  "extensionKind": ["ui"],
+  "activationEvents": ["onWebviewPanel:hapiChat.chat"],
+  "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+  "contributes": {
+    "commands": [
+      { "command": "hapiChat.addConnection", "title": "HAPI: Add Connection", "icon": "$(add)" },
+      { "command": "hapiChat.selectConnection", "title": "HAPI: Switch Connection", "icon": "$(plug)" },
+      { "command": "hapiChat.editConnection", "title": "HAPI: Edit Connection" },
+      { "command": "hapiChat.removeConnection", "title": "HAPI: Remove Connection" },
+      { "command": "hapiChat.openChat", "title": "HAPI: Open Chat", "icon": "$(comment-discussion)" },
+      { "command": "hapiChat.newChat", "title": "HAPI: New Chat", "icon": "$(add)" },
+      { "command": "hapiChat.refresh", "title": "HAPI: Refresh Sessions", "icon": "$(refresh)" }
+    ],
+    "viewsContainers": { "activitybar": [{ "id": "hapiChat", "title": "HAPI Chat", "icon": "media/hapi.svg" }] },
+    "views": { "hapiChat": [{ "id": "hapiChat.sessions", "name": "Connections and Chats" }] },
+    "viewsWelcome": [{ "view": "hapiChat.sessions", "contents": "Connect to a HAPI hub to open agent chats.\n[Add Connection](command:hapiChat.addConnection)", "when": "!hapiChat.hasConnections" }],
+    "menus": {
+      "view/title": [
+        { "command": "hapiChat.selectConnection", "when": "view == hapiChat.sessions", "group": "navigation@1" },
+        { "command": "hapiChat.newChat", "when": "view == hapiChat.sessions", "group": "navigation@2" },
+        { "command": "hapiChat.refresh", "when": "view == hapiChat.sessions", "group": "navigation@3" },
+        { "command": "hapiChat.addConnection", "when": "view == hapiChat.sessions", "group": "connections@1" }
+      ],
+      "view/item/context": [
+        { "command": "hapiChat.newChat", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "inline@1" },
+        { "command": "hapiChat.editConnection", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@1" },
+        { "command": "hapiChat.removeConnection", "when": "view == hapiChat.sessions && viewItem == hapiConnection", "group": "connection@2" }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "lint": "node scripts/check.js",
+    "package": "vsce package --no-dependencies",
+    "test:host": "node scripts/test-host.js"
+  },
+  "devDependencies": { "@vscode/vsce": "4.0.0", "@vscode/test-electron": "3.1.0", "ovsx": "1.2.0" }
+}
