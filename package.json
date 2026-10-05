@@ -2,7 +2,7 @@
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
   "description": "HAPI chats in a dedicated sidebar, with saved profiles, automatic login, folder groups and editor theme sync.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "icon": "media/icon.png",
   "publisher": "3ndetz",
   "license": "MIT",

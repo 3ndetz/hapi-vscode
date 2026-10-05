@@ -51,8 +51,22 @@ class Sidebar {
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
-        await m.vscode.commands.executeCommand('hapiChat.web.focus');
-        this.view?.show(false); this.update();
+        await this.reveal();
+        this.update();
+    }
+    async reveal() {
+        // A resolved view can reveal itself, including after being moved or hidden.
+        if (!this.view) {
+            const commands = await this.manager.vscode.commands.getCommands(true);
+            const command = ['hapiChat.web.focus', 'hapiChat.web.open', 'workbench.view.extension.hapiChat'].find(id => commands.includes(id));
+            const unavailable = () => new Error('The HAPI Chat sidebar is not available in this window. Run Developer: Reload Window to load the installed extension, then open HAPI Chat again.');
+            if (!command) throw unavailable();
+            await this.manager.vscode.commands.executeCommand(command);
+            // Workbench commands can finish before the extension host receives the view.
+            for (let n = 0; !this.view && n < 100; n++) await new Promise(resolve => setTimeout(resolve, 50));
+            if (!this.view) throw unavailable();
+        }
+        this.view.show(false);
     }
     update() {
         if (!this.view) return;

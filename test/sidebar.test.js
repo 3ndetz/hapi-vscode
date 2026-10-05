@@ -3,6 +3,28 @@ const { test } = require('node:test'), assert = require('node:assert/strict');
 const path = require('node:path');
 const { Sidebar } = require('../src/sidebar'), { Connections } = require('../src/connections');
 const { mockHub } = require('./mock-hub');
+test('sidebar opening survives missing focus commands and preserves the view location', async () => {
+    let calls = [], shown = 0;
+    const view = { show: preserveFocus => { assert.equal(preserveFocus, false); shown++; } };
+    const vscode = { commands: {
+        getCommands: async () => ['hapiChat.web.open', 'workbench.view.extension.hapiChat'],
+        executeCommand: async command => { calls.push(command); sidebar.view = view; }
+    } };
+    const sidebar = new Sidebar({ vscode });
+    await sidebar.reveal();
+    assert.deepEqual(calls, ['hapiChat.web.open']); assert.equal(shown, 1);
+    vscode.commands.getCommands = async () => { throw Error('Existing views must not depend on generated commands.'); };
+    await sidebar.reveal(); assert.equal(shown, 2);
+    sidebar.view = undefined; calls = [];
+    vscode.commands.getCommands = async () => ['workbench.view.extension.hapiChat'];
+    await sidebar.reveal(); assert.deepEqual(calls, ['workbench.view.extension.hapiChat']);
+    sidebar.view = undefined; calls = [];
+    vscode.commands.getCommands = async () => ['hapiChat.web.focus', 'hapiChat.web.open'];
+    await sidebar.reveal(); assert.deepEqual(calls, ['hapiChat.web.focus']);
+    sidebar.view = undefined;
+    vscode.commands.getCommands = async () => [];
+    await assert.rejects(sidebar.reveal(), /Developer: Reload Window/);
+});
 test('sidebar profile follows the active chat, keeps other hubs loaded, and restores only safe metadata', async () => {
     const hub = await mockHub(); const values = new Map(), secrets = new Map(); let state;
     const context = { extensionUri: process.cwd(), subscriptions: [], globalState: { get: (k, d) => values.get(k) ?? d, update: async (k, v) => values.set(k, v) },

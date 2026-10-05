@@ -8,6 +8,8 @@ A small, independent client for [HAPI](https://github.com/tiann/hapi). Open the 
 
 Install **3ndetz.hapi-chat** from [Open VSX](https://open-vsx.org/extension/3ndetz/hapi-chat), or download a `.vsix` from [GitHub Releases](https://github.com/3ndetz/hapi-vscode/releases) and run **Extensions: Install from VSIX…** in VS Code.
 
+After installing an update, run **Developer: Reload Window** so that the current window loads the new sidebar contribution. If VS Code reports that the HAPI sidebar is unavailable, reload the window and open the chat again. Reloading keeps saved profiles and tokens.
+
 1. Click **HAPI Chat** in the activity bar, or run **HAPI: Add Connection**.
 2. Enter a name, the hub URL and its **access token** (the token used to sign in to HAPI).
 3. In **Hubs, Folders and Chats**, expand a hub, then a working folder and select a session. **HAPI: Show Chat List** focuses this list; **HAPI: Open Chat** searches sessions by title and directory.
