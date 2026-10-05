@@ -70,6 +70,12 @@ async function run() {
         const chatA = manager.open(ca.id, sa.id), chatB = manager.open(cb.id, sb.id), chatC = manager.open(ca.id, second.id);
         assert.equal(manager.chats.length, 3);
         assert.equal(manager.open(ca.id, sa.id), chatA, 'Repeated open focuses the existing panel.');
+        // VS Code initializes a new webview when it becomes visible. Let each
+        // panel load before testing simultaneous updates in retained hidden views.
+        for (const chat of [chatA, chatB, chatC]) {
+            chat.panel.reveal();
+            await waitFor(() => chat.live && chat.ready);
+        }
         chatB.panel.reveal(vscode.ViewColumn.Beside);
         await Promise.all([chatA.refresh(), chatB.refresh(), chatC.refresh()]);
         await waitFor(() => chatA.live && chatB.live && chatC.live && chatA.ready && chatB.ready && chatC.ready);
