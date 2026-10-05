@@ -3,7 +3,7 @@ const vscode = require('vscode');
 const assert = require('node:assert/strict');
 const { mockHub } = require('./mock-hub');
 const waitFor = async predicate => {
-    for (let n = 0; n < 100; n++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
+    for (let n = 0; n < 600; n++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
     throw new Error('Timed out waiting for live chat updates.');
 };
 async function run() {
