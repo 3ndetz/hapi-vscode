@@ -15,7 +15,7 @@ class Sidebar {
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
         view.onDidDispose(() => { this.view = undefined; }, undefined, this.manager.context.subscriptions);
         view.onDidChangeVisibility(() => { if (view.visible) this.update(); }, undefined, this.manager.context.subscriptions);
-        if (!this.restored) { this.restored = true; if (!this.entries.length) void this.restore().catch(() => {}); }
+        void this.restoreSaved().catch(() => {});
     }
     async receive(message) {
         const m = this.manager;
@@ -33,7 +33,8 @@ class Sidebar {
             if (message.action === 'reloadChat' && active) { active.reload = (active.reload || 0) + 1; this.update(); }
         }
     }
-    async open(connectionId, sessionId, label, directory, savedInstanceId) {
+    async open(connectionId, sessionId, label, directory, savedInstanceId, restoring = false) {
+        if (!restoring) await this.restoreSaved();
         const m = this.manager, connection = m.connections.find(connectionId);
         if (!connection) throw Error('This connection was removed.');
         let promise = this.proxies.get(connectionId);
@@ -53,7 +54,7 @@ class Sidebar {
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
-        await this.reveal();
+        if (!restoring) await this.reveal();
         this.update();
     }
     async reveal() {
@@ -81,13 +82,20 @@ class Sidebar {
         // Persist only navigation metadata, never the loopback login capability.
         void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, title }) => ({ connectionId, sessionId, directory, instanceId, title })), activeId: this.activeId });
     }
+    restoreSaved() {
+        if (!this.restored) {
+            this.restored = true;
+            this.restoring = this.restore().finally(() => { this.restoring = undefined; });
+        }
+        return this.restoring || Promise.resolve();
+    }
     async restore() {
         const state = this.manager.context.globalState.get('sidebarTabs');
         if (!Array.isArray(state?.entries)) return;
         const selected = this.manager.connections.selected()?.id;
         for (const entry of state.entries) {
             if (!this.manager.connections.find(entry.connectionId) || entry.sessionId !== undefined && typeof entry.sessionId !== 'string') continue;
-            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined);
+            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined, true);
         }
         if (this.entries.some(e => e.id === state.activeId)) this.activeId = state.activeId;
         const active = this.entries.find(e => e.id === this.activeId);

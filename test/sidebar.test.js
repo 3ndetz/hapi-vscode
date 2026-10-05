@@ -59,5 +59,18 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         assert.equal(active.reload, 1); assert.equal(sidebar.entries.length, 4);
         assert.ok(!JSON.stringify(values.get('sidebarTabs')).includes('reload'), 'Reload state is transient; stored chat navigation stays unchanged.');
         vscode.window.activeColorTheme.kind = 4; sidebar.update(); assert.equal(state.theme, 'light');
+        const count = sidebar.entries.length;
+        sidebar.dispose();
+        const reloadedManager = { ...manager, vscode: { ...vscode, commands: {
+            getCommands: async () => ['hapiChat.conversation.focus'],
+            executeCommand: async () => reloaded.resolveWebviewView(view)
+        } }, updateSelection: () => reloaded.update() };
+        const reloaded = new Sidebar(reloadedManager);
+        try {
+            await reloaded.open(a.id, 'after-update', 'Opened after an update');
+            assert.equal(reloaded.entries.length, count + 1, 'The first tree click after an update preserves all previously open chats.');
+            assert.equal(reloaded.entries.find(entry => entry.id === reloaded.activeId).sessionId, 'after-update');
+            assert.ok(!JSON.stringify(values.get('sidebarTabs')).includes('token='));
+        } finally { reloaded.dispose(); }
     } finally { sidebar.dispose(); connections.dispose(); await hub.close(); }
 });
