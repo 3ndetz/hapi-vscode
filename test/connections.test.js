@@ -27,3 +27,15 @@ test('editing a connection invalidates its authenticated client', async () => {
     assert.equal(previous.controller.signal.aborted, true); assert.equal(await c.client(a.id).getSecret(), 'new-secret');
     c.dispose();
 });
+test('delayed storage snapshots and concurrent profile edits cannot drop acknowledged connections', async () => {
+    const ctx = context();
+    ctx.globalState.get = (_, fallback) => fallback; // A late native storage notification still exposes the old empty snapshot.
+    const c = new Connections(ctx);
+    const [a, b] = await Promise.all([c.save({ name: 'A', url: 'https://a.example/' }, 'secret-a'), c.save({ name: 'B', url: 'https://b.example/' }, 'secret-b')]);
+    assert.equal(c.list().length, 2); assert.equal(ctx.state.get('connections').length, 2);
+    await c.select(b.id); assert.equal(c.selected().id, b.id);
+    await assert.rejects(c.save({ ...a, url: 'https://changed.example/' }), /token for the new endpoint/);
+    await c.remove(a.id);
+    assert.deepEqual(c.list().map(p => p.id), [b.id]); assert.deepEqual(ctx.state.get('connections').map(p => p.id), [b.id]);
+    c.dispose();
+});
