@@ -14,3 +14,4 @@ iframe[hidden],#empty[hidden]{display:none}
 #empty{padding:24px 16px;color:var(--vscode-descriptionForeground)}
 #empty h2{font-size:16px;font-weight:500;color:var(--vscode-foreground)}
 #empty button{margin:6px 4px 0 0}
+body:not(.panel) [data-action="detach"] { display: none; }

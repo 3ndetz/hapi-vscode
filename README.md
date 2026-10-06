@@ -1,6 +1,6 @@
 # HAPI Chat for VS Code
 
-A small, independent client for [HAPI](https://github.com/tiann/hapi). **Connections and folder navigation live on the left. Full HAPI website chats open separately in the right sidebar, using its full height.** Select saved hub profiles and switch between independent conversations in the compact header. The chat follows your editor's light/dark theme. Optional integrated-browser tabs and minimal custom chat panels remain available.
+A small, independent client for [HAPI](https://github.com/tiann/hapi). **Connections and folders live on the left. Full HAPI website chats open in the right sidebar and in independent windows beside each other.** Open several instances, select saved hub profiles and sign in automatically. Chats follow your editor's light/dark theme. Proxy use is configurable. Optional integrated-browser tabs and minimal custom chat panels remain available.
 
 ![Optional custom chat interface with illustrative messages](docs/images/hapi-chat.png)
 
@@ -53,6 +53,26 @@ The optional custom panel is a minimal client. Terminal, attachments, voice, mod
 
 Only sessions registered with HAPI are controllable here. This extension does not take ownership of sessions running in OpenAI's separate Codex extension. A saved/imported chat can still have an active native writer elsewhere; resume errors from that writer must be resolved through the native workflow, not by forcing a second writer.
 
+## Multiple chat windows
+
+Keep connections and folders on the left and the primary website chat on the right. For several chats visible at once, use **HAPI: Open Chat Beside**, the **◫** button above the website, or the split icon next to a session in the folder tree. Every invocation creates a separate native VS Code webview panel, including when the same conversation is already open. Panels appear in adjacent full-height editor groups, alongside the right sidebar. Drag their tabs between groups and resize columns using VS Code's normal controls.
+
+**HAPI: New Chat Window** or the second **＋** button opens a fresh HAPI new-session form in its own column. A folder's context menu carries its directory into that form. This is HAPI's real website, with the same native features and runner-side project rules. Each window has its own saved-profile selector and stays on its own hub when another window changes profile. Keys are read from SecretStorage automatically. Closing a window closes its website only; it does not stop an agent. **↗** in a chat window moves that panel into a separate native VS Code window. The sidebar's upper **↗** still opens the independent integrated browser.
+
+Panels restore their safe navigation metadata after a VS Code reload. A small adapter bridge observes the website's current session path so that opening beside, reloading and restoring follow chats created or selected inside the native website. It never reports tokens or conversation text. If a hub's own content-security policy blocks the bridge, use the session tree to open the desired chat; native website framing/security policies are respected.
+
+## Proxy settings
+
+**HAPI Chat: Use VS Code Proxy** (`hapiChat.useVSCodeProxy`) is **enabled by default**. Extension API calls and embedded website traffic, including assets, uploads, SSE and WebSockets, use `http.proxy` (HTTP/HTTPS), `http.proxySupport`, `http.noProxy`, `http.proxyAuthorization` and `http.proxyStrictSSL`. When `http.proxy` is empty, HTTP(S) environment proxy variables are used. Loopback and matching exclusions always connect directly. Automatic operating-system/PAC proxy discovery and SOCKS proxies are not supported by this transport; configure an HTTP(S) proxy explicitly.
+
+Disable the setting for direct HAPI connections even if VS Code or the environment specifies a proxy:
+
+```json
+"hapiChat.useVSCodeProxy": false
+```
+
+The setting affects subsequent extension requests without an editor restart. Already established streams/sockets retain their route until reconnect; **↻** reconnects the embedded website. It does not change global VS Code settings, other extensions, the runner's network or optional external integrated-browser traffic. TLS verification stays enabled unless your explicit `http.proxyStrictSSL` setting disables it. System trust certificates are included when the Node runtime supports them and `http.systemCertificates` is enabled.
+
 ## Credentials and compatibility
 
 Hub access keys use **VS Code SecretStorage**. Profile names/URLs and navigation metadata use global extension storage. Keys are never stored in settings, source files or tab state and never sent to sidebar/custom chat scripts. The sidebar's loopback adapter listens only on `127.0.0.1`, rejects mismatched Host/cross-origin login and scopes a random capability to one profile. Only its native authentication endpoint translates that capability to the real key. Native JWTs are returned to HAPI's actual website, as in normal browser login. Custom JWTs remain in the extension host. **Copy Login Token** copies a key only when invoked. Do not use a shared OS account for private chats.
@@ -64,6 +84,10 @@ The session list and custom panel use the **native REST + SSE API**, with no int
 ## Русский
 
 Установка: скачайте VSIX из Releases, затем выберите **Extensions: Install from VSIX…** и перезагрузите окно VS Code. В **HAPI Connections** слева настройте профили и выберите чат в списке папок. Сам чат откроется отдельно в **HAPI Chats** справа, на всю высоту панели. Ключ хранится в SecretStorage, вход автоматический. В шапке **Hub** выбирается сохранённый профиль, **Chat** переключает открытые чаты. Кнопка **×** закрывает выбранный сайт без остановки агента, **↻** перезагружает его. Команда **HAPI: Show Right Chat Panel** показывает правую панель. Нужен VS Code 1.106 или новее.
+
+Чтобы видеть несколько чатов одновременно, нажмите **◫** над чатом или выполните **HAPI: Open Chat Beside**. Каждый клик открывает отдельную область рядом, даже для того же чата. **HAPI: New Chat Window** открывает форму нового чата в своей области. У каждой области своя шапка Hub с сохранёнными профилями и автовходом. Вкладки можно перетаскивать и расставлять как на примере с Codex. Кнопка **↗** в окне чата переносит его в отдельное окно VS Code.
+
+В настройках **HAPI Chat: Use VS Code Proxy** по умолчанию включено использование HTTP(S) прокси VS Code. Выключите настройку, чтобы расширение подключалось напрямую. Она действует на список, вход и встроенный сайт, включая поток сообщений и WebSocket. Уже открытый сайт переподключается кнопкой **↻**. Глобальные настройки VS Code и других расширений не меняются.
 
 Список ниже сгруппирован как **центр → рабочая папка → чаты**. **HAPI: Show Chat List** открывает список. Кнопка **+** у папки открывает новый чат с этой рабочей папкой. Настройка **HAPI Chat: Sync Editor Theme** включена по умолчанию: сайт подхватывает светлую или тёмную тему VS Code. В самом HAPI оставьте **Settings → Display → Appearance mode → System**, чтобы ручной выбор темы не перекрывал синхронизацию.
 

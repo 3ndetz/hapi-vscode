@@ -7,10 +7,13 @@ const { title } = require('./messages');
 const { chatMode, openWeb } = require('./web');
 const { Sidebar } = require('./sidebar');
 const { groupSessions } = require('./folders');
+const { editorNetwork } = require('./network');
+const { WebsitePanel } = require('./website-panel');
 
 class Manager {
     constructor(context) {
-        this.context = context; this.vscode = vscode; this.connections = new Connections(context); this.chats = [];
+        this.context = context; this.vscode = vscode; this.network = editorNetwork(vscode); this.connections = new Connections(context, this.network); this.chats = []; this.webPanels = []; this.websiteAdapters = new Map();
+        context.subscriptions.push(this.network);
         this.sidebar = new Sidebar(this);
         context.subscriptions.push(this.sidebar, vscode.window.registerWebviewViewProvider('hapiChat.conversation', this.sidebar, { webviewOptions: { retainContextWhenHidden: true } }));
         this.changed = new vscode.EventEmitter(); this.onDidChangeTreeData = this.changed.event;
@@ -30,6 +33,8 @@ class Manager {
             openBrowser: () => this.openBrowser(),
             showChats: () => vscode.commands.executeCommand('hapiChat.sessions.focus'),
             showChatPanel: () => this.sidebar.reveal(),
+            openChatBeside: item => this.openWindow(item || this.currentWebsite()),
+            newChatWindow: item => this.newWindow(item || this.currentWebsite()),
             copyLoginToken: item => this.copyLoginToken(item?.connectionId)
         };
         for (const [name, handler] of Object.entries(commands)) {
@@ -44,11 +49,18 @@ class Manager {
                 } else { panel.dispose(); }
             }
         }));
+        context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('hapiChat.website', {
+            deserializeWebviewPanel: async (panel, state) => {
+                if (typeof state?.connectionId !== 'string' || !this.connections.find(state.connectionId) || state.sessionId !== undefined && typeof state.sessionId !== 'string') return panel.dispose();
+                const chat = this.attachWebsite(panel);
+                await chat.open(state.connectionId, state.sessionId, typeof state.title === 'string' ? state.title : undefined, typeof state.directory === 'string' ? state.directory : undefined);
+            }
+        }));
         context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('hapiChat')) this.updateSelection();
         }));
-        context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => this.sidebar.update()));
-        context.subscriptions.push({ dispose: () => { for (const chat of [...this.chats]) { chat.dispose(); chat.panel.dispose(); } } });
+        context.subscriptions.push(vscode.window.onDidChangeActiveColorTheme(() => { this.sidebar.update(); for (const panel of this.webPanels) panel.update(); }));
+        context.subscriptions.push({ dispose: () => { for (const chat of [...this.chats]) { chat.dispose(); chat.panel.dispose(); } for (const chat of [...this.webPanels]) chat.panel.dispose(); } });
         this.updateSelection();
     }
     updateSelection() {
@@ -58,6 +70,7 @@ class Manager {
         void vscode.commands.executeCommand('setContext', 'hapiChat.hasConnections', this.connections.list().length > 0);
         this.changed.fire(undefined);
         this.sidebar.update();
+        for (const panel of this.webPanels) panel.update();
     }
     async pickConnection() {
         const connections = this.connections.list();
@@ -111,6 +124,7 @@ class Manager {
         if (token === undefined) return;
         // An edited endpoint must not keep sending the previous hub's credential.
         const connection = await this.connections.save({ id: old?.id, name, url }, token.trim() || undefined);
+        for (const chat of [...this.webPanels]) if (chat.entries[0]?.connectionId === connection.id) chat.panel.dispose();
         this.sidebar.remove(connection.id);
         for (const chat of [...this.chats]) if (chat.connectionId === connection.id) chat.panel.dispose();
         await this.connections.select(connection.id); this.updateSelection();
@@ -125,8 +139,9 @@ class Manager {
         id ||= (await this.pickConnection())?.id;
         if (!id) return;
         const connection = this.connections.find(id);
-        if (await vscode.window.showWarningMessage(`Remove ${connection.name} and its saved token? Custom chat panels will close. Website tabs and logins are managed separately.`, { modal: true }, 'Remove') !== 'Remove') return;
+        if (await vscode.window.showWarningMessage(`Remove ${connection.name} and its saved token? Embedded website and custom chat panels for this profile will close. External browser logins are managed separately.`, { modal: true }, 'Remove') !== 'Remove') return;
         for (const chat of [...this.chats]) if (chat.connectionId === id) chat.panel.dispose();
+        for (const chat of [...this.webPanels]) if (chat.entries[0]?.connectionId === id) chat.panel.dispose();
         this.sidebar.remove(id);
         await this.connections.remove(id); this.updateSelection();
         const active = this.sidebar.entries.find(e => e.id === this.sidebar.activeId);
@@ -152,6 +167,7 @@ class Manager {
             return result.sessions.map(s => {
                 const item = new vscode.TreeItem(title(s)); item.id = `${element.connectionId}:${s.id}`;
                 item.connectionId = element.connectionId; item.sessionId = s.id;
+                item.contextValue = 'hapiSession'; item.directory = s.metadata?.path;
                 item.description = `${s.active ? (s.thinking ? 'working' : 'online') : 'offline'}${s.pendingRequestsCount ? ' · needs input' : ''}`;
                 item.tooltip = `${s.metadata?.path || ''}\n${s.id}`; item.iconPath = new vscode.ThemeIcon(s.active ? 'comment-discussion' : 'history');
                 item.command = { command: 'hapiChat.openChat', title: 'Open Chat', arguments: [item] }; return item;
@@ -168,6 +184,22 @@ class Manager {
     attach(panel, connectionId, sessionId, draft) {
         const chat = new Chat(this, connectionId, sessionId, panel, draft); this.chats.push(chat); return chat;
     }
+    currentWebsite() {
+        const panel = this.webPanels.find(chat => chat.panel.active);
+        return panel?.entries[0] || this.sidebar.entries.find(entry => entry.id === this.sidebar.activeId);
+    }
+    attachWebsite(panel) {
+        const chat = new WebsitePanel(this, panel); this.webPanels.push(chat); return chat;
+    }
+    async openWindow(item = {}) {
+        const connection = item?.connectionId ? this.connections.find(item.connectionId) : this.connections.selected() || await this.pickConnection();
+        if (!connection) return;
+        const panel = vscode.window.createWebviewPanel('hapiChat.website', `HAPI · ${connection.name}`, vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
+        const chat = this.attachWebsite(panel);
+        try { await chat.open(connection.id, item?.sessionId, item?.title || item?.label, item?.directory); return chat; }
+        catch (error) { panel.dispose(); throw error; }
+    }
+    newWindow(item) { return this.openWindow({ connectionId: item?.connectionId, directory: item?.directory, sessionId: 'new', title: 'New chat' }); }
     open(connectionId, sessionId, label) {
         if (chatMode(vscode) === 'web') {
             const connection = this.connections.find(connectionId);

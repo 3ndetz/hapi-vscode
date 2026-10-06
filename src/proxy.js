@@ -1,10 +1,12 @@
 'use strict';
-const http = require('node:http'), https = require('node:https');
+const http = require('node:http');
 const { randomBytes, timingSafeEqual } = require('node:crypto');
 const { normalizeUrl } = require('./client');
+const { Network } = require('./network');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 async function websiteProxy(client, preferredPort = 0) {
     const upstream = new URL(normalizeUrl(client.url));
+    const network = client.network || new Network(() => ({ useProxy: false }));
     const capability = randomBytes(32).toString('hex');
     const sockets = new Set(); let origin;
     function target(req) {
@@ -16,10 +18,9 @@ async function websiteProxy(client, preferredPort = 0) {
     function headers(req) {
         const h = { ...req.headers, host: upstream.host, 'accept-encoding': 'identity' };
         if (h.origin) h.origin = upstream.origin;
-        delete h.referer; delete h.cookie;
+        delete h.referer; delete h.cookie; delete h.connection; delete h.upgrade; delete h['transfer-encoding']; delete h['proxy-authorization'];
         return h;
     }
-    const transport = upstream.protocol === 'https:' ? https : http;
     const server = http.createServer(async (req, res) => {
         const url = target(req);
         if (!url) { res.writeHead(403).end('Outside configured hub.'); return; }
@@ -33,47 +34,50 @@ async function websiteProxy(client, preferredPort = 0) {
             } catch { res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Unable to sign in with the saved profile. Edit its token and retry.' })); }
             return;
         }
-        const outgoing = transport.request(url, { method: req.method, headers: headers(req) }, incoming => {
+        const abort = new AbortController();
+        res.on('close', () => abort.abort());
+        try {
+            const incoming = await network.request(url, { method: req.method, headers: headers(req), signal: abort.signal, body: ['GET', 'HEAD'].includes(req.method) ? undefined : req });
             const h = { ...incoming.headers };
+            delete h.connection; delete h['transfer-encoding'];
             if (h.location) { const location = new URL(h.location, url); if (location.origin === upstream.origin && location.pathname.startsWith(upstream.pathname)) h.location = origin + location.pathname + location.search + location.hash; }
             // Browser storage is local to this connection's random loopback port.
             delete h['set-cookie'];
             if (String(h['content-type']).includes('text/html')) {
                 const chunks = [];
-                incoming.on('data', chunk => chunks.push(chunk));
-                incoming.on('end', () => {
+                incoming.body.on('data', chunk => chunks.push(chunk));
+                incoming.body.on('end', () => {
                     try {
                         let bytes = Buffer.concat(chunks);
                         const zlib = require('node:zlib');
                         if (h['content-encoding'] === 'gzip') bytes = zlib.gunzipSync(bytes);
                         if (h['content-encoding'] === 'br') bytes = zlib.brotliDecompressSync(bytes);
                         if (h['content-encoding'] === 'deflate') bytes = zlib.inflateSync(bytes);
-                        const body = bytes.toString('utf8').split(upstream.origin).join(origin);
+                        const bridge = `<script>(()=>{let last;setInterval(()=>{if(last!==location.pathname){last=location.pathname;parent.postMessage({type:'hapi-navigation',path:last},'*');}},300);})();</script>`;
+                        const body = bytes.toString('utf8').split(upstream.origin).join(origin).replace(/<\/body>/i, bridge + '</body>');
                         delete h['content-length']; delete h['content-encoding']; delete h.etag;
                         h['cache-control'] = 'no-store';
                         res.writeHead(incoming.statusCode, h).end(body);
                     } catch { res.writeHead(502).end('Unable to load hub website.'); }
                 });
-            } else { res.writeHead(incoming.statusCode, h); incoming.pipe(res); }
-        });
-        outgoing.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end('Hub website is unavailable.'); });
-        res.on('close', () => outgoing.destroy()); req.pipe(outgoing);
+            } else { res.writeHead(incoming.statusCode, h); incoming.body.pipe(res); }
+            incoming.body.on('error', () => res.destroy());
+        } catch { if (!res.headersSent) res.writeHead(502); res.end('Hub website is unavailable. Check the connection and HAPI proxy setting.'); }
     });
     server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
-    server.on('upgrade', (req, socket, head) => {
+    server.on('upgrade', async (req, socket, head) => {
         const url = target(req);
         if (!url) { socket.destroy(); return; }
-        const outgoing = transport.request(url, { method: 'GET', headers: headers(req) });
-        outgoing.on('upgrade', (response, remote, remoteHead) => {
+        const abort = new AbortController(); socket.on('close', () => abort.abort());
+        try {
+            const { headers: responseHeaders, socket: remote } = await network.upgrade(url, { headers: headers(req), protocol: req.headers.upgrade || 'websocket', signal: abort.signal });
             sockets.add(remote); remote.on('close', () => sockets.delete(remote));
-            socket.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n` + Object.entries(response.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') + '\r\n\r\n');
-            if (head.length) remote.write(head); if (remoteHead.length) socket.write(remoteHead);
+            socket.write('HTTP/1.1 101 Switching Protocols\r\n' + Object.entries(responseHeaders).map(([k, v]) => `${k}: ${v}`).join('\r\n') + '\r\n\r\n');
+            if (head.length) remote.write(head);
             socket.pipe(remote).pipe(socket);
             socket.on('error', () => remote.destroy()); remote.on('error', () => socket.destroy());
             socket.on('close', () => remote.destroy()); remote.on('close', () => socket.destroy());
-        });
-        outgoing.on('response', response => { response.resume(); socket.destroy(); });
-        outgoing.on('error', () => socket.destroy()); outgoing.end();
+        } catch { socket.destroy(); }
     });
     const listen = port => new Promise((resolve, reject) => {
         const failed = error => { server.removeListener('listening', ready); reject(error); };
@@ -86,7 +90,7 @@ async function websiteProxy(client, preferredPort = 0) {
         base: origin + upstream.pathname,
         port: server.address().port,
         loginUrl(remoteUrl) { const url = new URL(remoteUrl); if (url.origin !== upstream.origin || !url.pathname.startsWith(upstream.pathname)) throw Error('Outside configured hub.'); url.host = new URL(origin).host; url.protocol = 'http:'; url.searchParams.set('token', capability); return url.href; },
-        dispose() { for (const socket of sockets) socket.destroy(); server.close(); }
+        dispose() { for (const socket of sockets) socket.destroy(); server.close(); if (!client.network) network.dispose(); }
     };
 }
 module.exports = { websiteProxy };

@@ -2,7 +2,6 @@
 .github/**
 .local/**
 .vscode-test/**
-node_modules/**
 test/**
 scripts/**
 docs/**

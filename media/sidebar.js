@@ -8,10 +8,19 @@ profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: 
 conversation.addEventListener('change', () => api.postMessage({ type: 'activate', id: conversation.value }));
 close.addEventListener('click', () => api.postMessage({ type: 'close', id: conversation.value }));
 window.addEventListener('message', event => {
+    if (event.data?.type === 'hapi-navigation') {
+        for (const [id, frame] of frames) if (event.source === frame.contentWindow && event.origin === new URL(frame.src).origin) {
+            if (typeof event.data.path === 'string') api.postMessage({ type: 'navigate', id, path: event.data.path });
+            return;
+        }
+        return;
+    }
     // VS Code forwards messages from its preload window, whose WindowProxy
     // differs between runtimes. Trust the webview origin, never a hub iframe.
     if (event.origin !== window.origin || event.data?.type !== 'state') return;
     const state = event.data;
+    if (state.panel && state.navigation) api.setState(state.navigation);
+    document.body.classList.toggle('panel', !!state.panel);
     document.documentElement.style.colorScheme = state.syncTheme ? state.theme : 'normal';
     profile.replaceChildren(...state.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name; return option; }));
     profile.value = state.selected || '';

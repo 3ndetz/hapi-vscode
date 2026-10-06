@@ -2,7 +2,7 @@
 const http = require('node:http');
 const { randomUUID } = require('node:crypto');
 
-async function mockHub(prefix = '/', token = 'test-key') {
+async function mockHub(prefix = '/', token = 'test-key', host = '127.0.0.1') {
     const sessions = new Map(); const messages = new Map(); const streams = new Set(); const requests = [];
     let authCount = 0; let jwt = `test-jwt-${randomUUID()}`;
     function event(data) {
@@ -75,8 +75,8 @@ async function mockHub(prefix = '/', token = 'test-key') {
         if (action.startsWith('permissions/')) { delete session.agentState.requests[decodeURIComponent(action.split('/')[1])]; return json({ ok: true }); }
         return json({}, 404);
     });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    return { url: `http://127.0.0.1:${server.address().port}${prefix}`, token, sessions, messages, requests, event, addSession,
+    await new Promise(resolve => server.listen(0, host, resolve));
+    return { url: `http://${host}:${server.address().port}${prefix}`, token, sessions, messages, requests, event, addSession,
         get authCount() { return authCount; }, rotateJwt: () => { jwt = randomUUID(); },
         close: () => new Promise(resolve => { for (const s of streams) s.res.end(); server.close(resolve); server.closeAllConnections(); }) };
 }

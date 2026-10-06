@@ -64,6 +64,29 @@ async function run() {
         await manager.sidebar.receive({ type: 'activate', id: manager.sidebar.entries.find(e => e.connectionId === cb.id && e.sessionId === sb.id).id });
         assert.equal(manager.connections.selected().id, cb.id, 'The header follows the active conversation profile.');
         assert.ok(!b.requests.some(r => r.route.endsWith('/spawn')), 'Web new chat delegates to the website form.');
+        const websiteA = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Independent A' });
+        const websiteDuplicate = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Duplicate A' });
+        const websiteB = await manager.openWindow({ connectionId: cb.id, sessionId: sb.id, label: 'Independent B' });
+        await waitFor(() => manager.webPanels.length === 3 && manager.webPanels.every(p => p.panel.visible));
+        await waitFor(() => a.requests.filter(r => r.route === `sessions/${sa.id}`).length >= 3 && b.requests.filter(r => r.route === `sessions/${sb.id}`).length >= 2);
+        assert.equal(new Set(manager.webPanels.map(p => p.panel.viewColumn)).size, 3, 'Three native chat columns are visible simultaneously.');
+        assert.equal(manager.sidebar.view.visible, true, 'The right sidebar stays alongside independent website windows.');
+        await manager.connections.select(cb.id); manager.updateSelection();
+        assert.equal(websiteA.metadata().connectionId, ca.id); assert.equal(websiteB.metadata().connectionId, cb.id);
+        const schemesBefore = a.requests.filter(r => r.route === 'api/sessions' && r.query.scheme === 'light').length;
+        await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
+        await waitFor(() => a.requests.filter(r => r.route === 'api/sessions' && r.query.scheme === 'light').length >= schemesBefore + 2);
+        await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Dark Modern', vscode.ConfigurationTarget.Global);
+        await websiteA.receive({ type: 'action', action: 'newChat' });
+        assert.equal(websiteA.metadata().sessionId, 'new'); assert.equal(websiteDuplicate.metadata().sessionId, sa.id);
+        websiteA.panel.dispose(); assert.equal(manager.webPanels.length, 2);
+        assert.equal(websiteDuplicate.panel.visible, true);
+        await websiteB.receive({ type: 'profile', id: ca.id });
+        assert.equal(websiteB.metadata().connectionId, ca.id);
+        const separateForm = await manager.newWindow({ connectionId: cb.id, directory: '/workspace/other' });
+        assert.equal(separateForm.metadata().directory, '/workspace/other');
+        await waitFor(() => b.requests.some(r => r.route === 'sessions/new' && r.query.directory === '/workspace/other'));
+        for (const panel of [...manager.webPanels]) panel.panel.dispose();
         for (const r of [...a.requests, ...b.requests].filter(r => !r.route.startsWith('api/'))) {
             assert.equal(r.auth, undefined); assert.equal(r.query.token, undefined, 'Never pass keys in browser URLs.');
         }
@@ -112,6 +135,8 @@ async function run() {
     } finally {
         manager?.connections.dispose();
         manager?.sidebar.dispose();
+        manager?.network.dispose();
+        for (const chat of [...manager?.webPanels || []]) chat.panel.dispose();
         for (const chat of [...manager?.chats || []]) chat.panel.dispose();
         await a.close(); await b.close();
         await configuration.update('chatMode', undefined, vscode.ConfigurationTarget.Global);

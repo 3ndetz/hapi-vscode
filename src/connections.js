@@ -3,7 +3,7 @@ const { randomUUID } = require('node:crypto');
 const { HapiClient, normalizeUrl } = require('./client');
 
 class Connections {
-    constructor(context) { this.context = context; this.clients = new Map(); }
+    constructor(context, network) { this.context = context; this.network = network; this.clients = new Map(); }
     list() { return this.context.globalState.get('connections', []); }
     selected() { return this.list().find(c => c.id === this.context.globalState.get('selected')) || this.list()[0]; }
     find(id) { return this.list().find(c => c.id === id); }
@@ -28,7 +28,11 @@ class Connections {
     client(id) {
         const connection = this.find(id);
         if (!connection) throw new Error('This connection was removed. Add it again to open the chat.');
-        if (!this.clients.has(id)) this.clients.set(id, new HapiClient(connection.url, () => this.context.secrets.get(this.secretKey(id))));
+        if (!this.clients.has(id)) {
+            const client = new HapiClient(connection.url, () => this.context.secrets.get(this.secretKey(id)), this.network ? this.network.fetch.bind(this.network) : undefined);
+            client.network = this.network;
+            this.clients.set(id, client);
+        }
         return this.clients.get(id);
     }
     dispose() { for (const client of this.clients.values()) client.dispose(); this.clients.clear(); }
