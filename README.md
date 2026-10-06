@@ -27,6 +27,8 @@ Add as many named connections as you need. Use **HAPI: Switch Connection** to se
 
 Profile edits are serialized so rapid saves cannot overwrite another connection. Each extension host keeps its acknowledged profile list; reload another main VS Code window to load profiles edited elsewhere. Auxiliary chat windows share the original host and update immediately.
 
+Names, hub URLs and safe navigation metadata are saved together by atomic replacement of `metadata.json` in the extension's global storage directory. Existing metadata migrates automatically from VS Code's previous extension state. Access keys keep their existing SecretStorage identifiers and never enter this file.
+
 The left sidebar lists sessions as **hub → working folder → chats**, keeping folders on different runner machines separate. The independent right chat header shows the current saved profile. Opening another profile preserves other chats; the **Chat** selector switches conversations and selects that chat's profile. Each open website stays loaded independently; **×** closes the selected website without stopping its agent. **↻** reloads only that website if it needs a fresh sign-in. Switching between the left configuration and an editor does not hide the right chat. Both containers can still be moved using VS Code's normal view controls.
 
 Sidebar navigation is restored from extension state. Its adapter reuses a saved local port when available, so HAPI can retain website preferences and drafts for that origin; if the port is occupied, a new local origin is used. Integrated-browser and Custom modes still support editor tabs and **Split Editor**. VS Code manages integrated-browser restoration; Custom restores panel tabs and composer drafts.

@@ -98,7 +98,7 @@ class Sidebar {
     }
     save() {
         // Persist only navigation metadata, never the loopback login capability.
-        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, title }) => ({ connectionId, sessionId, directory, instanceId, title })), activeId: this.activeId, activeIndex: this.entries.findIndex(e => e.id === this.activeId) });
+        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, title }) => ({ connectionId, sessionId, directory, instanceId, title })), activeId: this.activeId, activeIndex: this.entries.findIndex(e => e.id === this.activeId) }).catch(error => this.manager.vscode.window.showErrorMessage(error.message));
     }
     restoreSaved() {
         if (!this.restored) {
