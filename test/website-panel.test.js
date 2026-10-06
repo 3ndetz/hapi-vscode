@@ -2,7 +2,7 @@
 const { test } = require('node:test'), assert = require('node:assert/strict'), path = require('node:path');
 const { WebsitePanel } = require('../src/website-panel'), { Sidebar } = require('../src/sidebar'), { Connections } = require('../src/connections');
 const { mockHub } = require('./mock-hub');
-test('independent website panels duplicate chats, pin profiles, retain safe navigation and share login adapters', async () => {
+test('independent website panels duplicate chats, pin profiles, retain safe navigation and isolate website connections', async () => {
     const a = await mockHub(), b = await mockHub('/other/', 'other-key'), saved = new Map(), secrets = new Map();
     const context = { extensionUri: process.cwd(), subscriptions: [], globalState: { get: (k, d) => saved.get(k) ?? d, update: async (k, v) => saved.set(k, v) },
         secrets: { get: async k => secrets.get(k), store: async (k, v) => secrets.set(k, v), delete: async k => secrets.delete(k) } };
@@ -21,7 +21,7 @@ test('independent website panels duplicate chats, pin profiles, retain safe navi
     try {
         await first.open(ca.id, 'same', 'First'); await duplicate.open(ca.id, 'same', 'Second'); await other.open(cb.id, 'elsewhere');
         assert.equal(manager.webPanels.length, 3); assert.notEqual(first.panel, duplicate.panel);
-        assert.equal(new URL(first.entries[0].url).origin, new URL(duplicate.entries[0].url).origin, 'Same hub shares website storage and server-side login.');
+        assert.notEqual(new URL(first.entries[0].url).origin, new URL(duplicate.entries[0].url).origin, 'Duplicate conversations have separate browser connection budgets.');
         assert.notEqual(new URL(first.entries[0].url).origin, new URL(other.entries[0].url).origin);
         await connections.select(cb.id); manager.updateSelection();
         assert.equal(first.panel.state.selected, ca.id); assert.equal(other.panel.state.selected, cb.id);
@@ -37,6 +37,6 @@ test('independent website panels duplicate chats, pin profiles, retain safe navi
         await first.receive({ type: 'profile', id: cb.id }); assert.equal(first.metadata().connectionId, cb.id); assert.equal(duplicate.metadata().connectionId, ca.id);
         await duplicate.receive({ type: 'action', action: 'newChat' }); assert.equal(duplicate.metadata().sessionId, 'new');
         first.panel.dispose(); assert.equal(manager.webPanels.length, 2);
-        assert.equal((await fetch(duplicate.entries[0].url)).status, 200, 'Closing a window leaves the shared hub adapter available.');
+        assert.equal((await fetch(duplicate.entries[0].url)).status, 200, 'Closing a window leaves neighboring website adapters available.');
     } finally { sidebar.dispose(); connections.dispose(); await a.close(); await b.close(); }
 });

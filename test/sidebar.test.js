@@ -57,6 +57,9 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         const active = sidebar.entries.find(entry => entry.id === sidebar.activeId);
         await sidebar.receive({ type: 'action', action: 'reloadChat' });
         assert.equal(active.reload, 1); assert.equal(sidebar.entries.length, 4);
+        await Promise.all([sidebar.open(a.id, 'rapid-click'), sidebar.open(a.id, 'rapid-click')]);
+        assert.equal(sidebar.entries.filter(e => e.sessionId === 'rapid-click').length, 1, 'Rapid repeated clicks cannot leak duplicate pages or adapters.');
+        assert.equal(sidebar.proxies.size, sidebar.entries.length);
         assert.ok(!JSON.stringify(values.get('sidebarTabs')).includes('reload'), 'Reload state is transient; stored chat navigation stays unchanged.');
         vscode.window.activeColorTheme.kind = 4; sidebar.update(); assert.equal(state.theme, 'light');
         const count = sidebar.entries.length;

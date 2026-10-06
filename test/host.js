@@ -122,7 +122,7 @@ async function run() {
         await waitFor(() => manager.webPanels.length === 3 && manager.webPanels.every(p => p.panel.visible));
         // Chromium can coalesce identical simultaneous document requests. Count
         // authenticated reports from distinct JavaScript contexts instead.
-        const websiteInstances = (hub, id) => new Set(hub.requests.filter(r => r.route === 'api/sessions' && r.query.page === new URL(`sessions/${id}`, hub.url).pathname && r.query.view).map(r => r.query.view)).size;
+        const websiteInstances = (hub, id) => new Set(hub.requests.filter(r => r.route === 'api/sessions' && r.query.page === new URL(`sessions/${id}`, hub.url).pathname && r.query.view && r.query.pipes === 'ready').map(r => r.query.view)).size;
         await waitFor(() => websiteInstances(a, sa.id) >= 3 && websiteInstances(b, sb.id) >= 2);
         assert.equal(new Set(manager.webPanels.map(p => p.panel.viewColumn)).size, 3, 'Three native chat columns are visible simultaneously.');
         assert.equal(manager.sidebar.view.visible, true, 'The right sidebar stays alongside independent website windows.');
@@ -138,6 +138,12 @@ async function run() {
         assert.equal(websiteDuplicate.panel.visible, true);
         await websiteB.receive({ type: 'profile', id: ca.id });
         assert.equal(websiteB.metadata().connectionId, ca.id);
+        const many = Array.from({ length: 8 }, (_, n) => a.addSession('browser-queue-' + n));
+        for (const s of many) await manager.sidebar.open(ca.id, s.id);
+        await waitFor(() => many.every(s => websiteInstances(a, s.id) >= 1));
+        assert.ok(many.every(s => a.messages.get(s.id).some(m => m.content?.content?.text === 'Native browser transport check')), 'Eight retained websites deliver browser POSTs while both event pipes stay open.');
+        assert.equal(new Set(manager.sidebar.entries.map(e => new URL(e.url).origin)).size, manager.sidebar.entries.length, 'Every sidebar iframe has an independent HTTP connection budget.');
+        for (const s of many) await manager.sidebar.receive({ type: 'close', id: manager.sidebar.entries.find(e => e.sessionId === s.id).id });
         const separateForm = await manager.newWindow({ connectionId: cb.id, directory: '/workspace/other' });
         assert.equal(separateForm.metadata().directory, '/workspace/other');
         await waitFor(() => b.requests.some(r => r.route === 'sessions/new' && r.query.directory === '/workspace/other'));

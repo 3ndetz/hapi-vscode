@@ -42,7 +42,7 @@ class Sidebar {
         }
         if (message?.type === 'profile' && m.connections.find(message.id)) { await m.connections.select(message.id); m.updateSelection(); await m.openHub(message.id); }
         if (message?.type === 'activate' && this.entries.some(e => e.id === message.id)) { this.activeId = message.id; await m.connections.select(this.entries.find(e => e.id === message.id).connectionId); this.save(); m.updateSelection(); }
-        if (message?.type === 'close') { this.entries = this.entries.filter(e => e.id !== message.id); if (this.activeId === message.id) this.activeId = this.entries.at(-1)?.id || ''; const active = this.entries.find(e => e.id === this.activeId); if (active) await m.connections.select(active.connectionId); this.save(); m.updateSelection(); }
+        if (message?.type === 'close') { this.release(this.entries.find(e => e.id === message.id)); this.entries = this.entries.filter(e => e.id !== message.id); if (this.activeId === message.id) this.activeId = this.entries.at(-1)?.id || ''; const active = this.entries.find(e => e.id === this.activeId); if (active) await m.connections.select(active.connectionId); this.save(); m.updateSelection(); }
         if (message?.type === 'action') {
             const active = this.entries.find(e => e.id === this.activeId);
             if (message.action === 'browser') { if (active) await require('./web').openWeb(m.vscode, m.connections.find(active.connectionId).url, active.sessionId); else await m.openBrowser(); }
@@ -55,24 +55,30 @@ class Sidebar {
             if (message.action === 'newWindow') await m.newWindow(active);
         }
     }
-    async open(connectionId, sessionId, label, directory, savedInstanceId, restoring = false) {
+    async open(connectionId, sessionId, label, directory, savedInstanceId, restoring = false, savedAdapterId) {
         if (!restoring) await this.restoreSaved();
         const m = this.manager, connection = m.connections.find(connectionId);
         if (!connection) throw Error('This connection was removed.');
-        let promise = this.proxies.get(connectionId);
+        const instanceId = sessionId === 'new' ? savedInstanceId || randomUUID() : undefined;
+        const id = JSON.stringify([connectionId, sessionId || '', directory || '', ...(instanceId ? [instanceId] : [])]);
+        const existing = this.entries.find(e => e.id === id);
+        const adapterId = existing?.adapterId || savedAdapterId || randomUUID();
+        // Each website opens two long-lived SSE streams. Sharing one HTTP/1
+        // loopback origin exhausts Chromium's six connection slots and stalls POSTs.
+        const key = JSON.stringify([connectionId, adapterId]);
+        let promise = this.proxies.get(key);
         if (!promise) {
-            const savedPort = m.context.globalState.get('sidebarProxyPorts', {})[connectionId];
+            const savedPort = m.context.globalState.get('sidebarProxyPorts', {})[key];
             const port = Number.isInteger(savedPort) && savedPort > 1023 && savedPort < 65536 ? savedPort : 0;
             promise = websiteProxy(m.connections.client(connectionId), port);
-            this.proxies.set(connectionId, promise); promise.catch(() => this.proxies.delete(connectionId));
-            void promise.then(proxy => m.context.globalState.update('sidebarProxyPorts', { ...m.context.globalState.get('sidebarProxyPorts', {}), [connectionId]: proxy.port }), () => {}).catch(() => {});
+            this.proxies.set(key, promise); promise.catch(() => this.proxies.delete(key));
+            void promise.then(proxy => m.context.globalState.update('sidebarProxyPorts', { ...m.context.globalState.get('sidebarProxyPorts', {}), [key]: proxy.port }), () => {}).catch(() => {});
         }
         const proxy = await promise;
         const remote = new URL(webUrl(connection.url, sessionId));
         if (directory) remote.searchParams.set('directory', directory);
-        const instanceId = sessionId === 'new' ? savedInstanceId || randomUUID() : undefined;
-        const id = JSON.stringify([connectionId, sessionId || '', directory || '', ...(instanceId ? [instanceId] : [])]);
-        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, title: label || (sessionId === 'new' ? 'New chat' : connection.name), url: proxy.loginUrl(remote.href) });
+        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, adapterId, title: label || (sessionId === 'new' ? 'New chat' : connection.name), url: proxy.loginUrl(remote.href) });
+        else if (!existing && this.entries.find(e => e.id === id).adapterId !== adapterId) this.release({ connectionId, adapterId });
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
@@ -104,7 +110,7 @@ class Sidebar {
     }
     save() {
         // Persist only navigation metadata, never the loopback login capability.
-        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, title }) => ({ connectionId, sessionId, directory, instanceId, title })), activeId: this.activeId, activeIndex: this.entries.findIndex(e => e.id === this.activeId) }).catch(error => this.manager.vscode.window.showErrorMessage(error.message));
+        void this.manager.context.globalState.update('sidebarTabs', { entries: this.entries.map(({ connectionId, sessionId, directory, instanceId, adapterId, title }) => ({ connectionId, sessionId, directory, instanceId, adapterId, title })), activeId: this.activeId, activeIndex: this.entries.findIndex(e => e.id === this.activeId) }).catch(error => this.manager.vscode.window.showErrorMessage(error.message));
     }
     restoreSaved() {
         if (!this.restored) {
@@ -119,7 +125,7 @@ class Sidebar {
         const selected = this.manager.connections.selected()?.id;
         for (const entry of state.entries) {
             if (!this.manager.connections.find(entry.connectionId) || entry.sessionId !== undefined && typeof entry.sessionId !== 'string') continue;
-            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined, true);
+            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined, true, typeof entry.adapterId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.adapterId) ? entry.adapterId : undefined);
         }
         if (this.entries.some(e => e.id === state.activeId)) this.activeId = state.activeId;
         else if (Number.isInteger(state.activeIndex) && this.entries[state.activeIndex]) this.activeId = this.entries[state.activeIndex].id;
@@ -128,9 +134,15 @@ class Sidebar {
         this.save(); this.manager.updateSelection();
     }
     remove(connectionId) {
+        for (const [key, promise] of this.proxies) if (JSON.parse(key)[0] === connectionId) { promise.then(proxy => proxy.dispose(), () => {}); this.proxies.delete(key); }
         this.entries = this.entries.filter(e => e.connectionId !== connectionId);
         if (!this.entries.some(e => e.id === this.activeId)) this.activeId = this.entries.at(-1)?.id || '';
-        this.proxies.get(connectionId)?.then(proxy => proxy.dispose(), () => {}); this.proxies.delete(connectionId); this.save(); this.update();
+        this.save(); this.update();
+    }
+    release(entry) {
+        if (!entry) return;
+        const key = JSON.stringify([entry.connectionId, entry.adapterId]);
+        this.proxies.get(key)?.then(proxy => proxy.dispose(), () => {}); this.proxies.delete(key);
     }
     dispose() { for (const proxy of this.proxies.values()) proxy.then(p => p.dispose(), () => {}); this.proxies.clear(); }
 }

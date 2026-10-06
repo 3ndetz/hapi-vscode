@@ -57,6 +57,7 @@ class Manager {
             deserializeWebviewPanel: async (panel, state) => {
                 if (typeof state?.connectionId !== 'string' || !this.connections.find(state.connectionId) || state.sessionId !== undefined && typeof state.sessionId !== 'string') return panel.dispose();
                 const chat = this.attachWebsite(panel);
+                if (typeof state.adapterId === 'string' && /^[a-f0-9-]{36}$/i.test(state.adapterId)) chat.adapterId = state.adapterId;
                 await chat.open(state.connectionId, state.sessionId, typeof state.title === 'string' ? state.title : undefined, typeof state.directory === 'string' ? state.directory : undefined);
             }
         }));

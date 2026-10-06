@@ -1,18 +1,20 @@
 'use strict';
 const { Sidebar } = require('./sidebar');
+const { randomUUID } = require('node:crypto');
 
-// Each native panel is a separate website instance. Adapters are shared per hub,
-// while profile selection, navigation and lifecycle belong to this panel alone.
+// A panel has its own loopback origin so its event streams never starve another
+// website's API requests. Profile selection and navigation remain independent.
 class WebsitePanel extends Sidebar {
     constructor(manager, panel) {
-        super(manager); this.panel = panel; this.restored = true;
+        super(manager); this.panel = panel; this.restored = true; this.adapterId = randomUUID();
         panel.iconPath = manager.vscode.Uri.joinPath(manager.context.extensionUri, 'media', 'icon.png');
         this.resolveWebviewView(panel);
-        panel.onDidDispose(() => { manager.webPanels = manager.webPanels.filter(p => p !== this); }, undefined, manager.context.subscriptions);
+        panel.onDidDispose(() => { this.dispose(); manager.webPanels = manager.webPanels.filter(p => p !== this); }, undefined, manager.context.subscriptions);
     }
     async open(...args) {
+        if (this.entries[0]?.connectionId !== args[0]) this.release(this.entries[0]);
         this.entries = [];
-        await super.open(...args);
+        await super.open(...args.slice(0, 4), undefined, false, this.adapterId);
         const entry = this.entries[0];
         this.panel.title = `${entry.title} · ${this.manager.connections.find(entry.connectionId).name}`;
         this.update();
@@ -23,7 +25,7 @@ class WebsitePanel extends Sidebar {
         const entry = this.entries[0];
         if (!entry) return;
         const { connectionId, sessionId, directory, title } = entry;
-        return { connectionId, sessionId, directory, title };
+        return { connectionId, sessionId, directory, title, adapterId: this.adapterId };
     }
     save() { this.update(); }
     update() {
@@ -44,6 +46,6 @@ class WebsitePanel extends Sidebar {
         }
         return super.receive(message);
     }
-    dispose() { /* Shared adapters are owned by Manager's primary sidebar. */ }
+    dispose() { this.release(this.entries[0]); }
 }
 module.exports = { WebsitePanel };
