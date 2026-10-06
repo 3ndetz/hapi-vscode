@@ -39,7 +39,11 @@ test('proxy and explicit direct mode cover native auth, API and embedded website
 });
 test('proxy routing preserves streaming and raw WebSocket upgrades', async () => {
     const host = Object.values(os.networkInterfaces()).flat().find(n => !n.internal && n.family === 'IPv4')?.address;
-    const sockets = new Set(), server = http.createServer((req, res) => {
+    const sockets = new Set(), server = http.createServer(async (req, res) => {
+        if (req.method === 'POST') {
+            const chunks = []; for await (const chunk of req) chunks.push(chunk);
+            res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(Buffer.concat(chunks)); return;
+        }
         res.writeHead(200, { 'content-type': 'text/event-stream' }); res.write('data: first\n\n'); setTimeout(() => res.end('data: last\n\n'), 30);
     });
     server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
@@ -53,6 +57,8 @@ test('proxy routing preserves streaming and raw WebSocket upgrades', async () =>
             settings.useProxy = !direct; const before = proxy.requests.length;
             assert.equal(await (await network.fetch(url)).text(), 'data: first\n\ndata: last\n\n');
             assert.equal(await (await fetch(adapter.base)).text(), 'data: first\n\ndata: last\n\n');
+            const upload = Buffer.alloc(100_000, 23);
+            assert.deepEqual(Buffer.from(await (await fetch(adapter.base + 'upload', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: upload })).arrayBuffer()), upload, 'Website upload bytes survive both routes.');
             await new Promise((resolve, reject) => {
                 const req = http.request(adapter.base + 'socket', { headers: { connection: 'Upgrade', upgrade: 'probe' } });
                 req.on('upgrade', (_, socket, head) => {

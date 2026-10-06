@@ -8,14 +8,12 @@ class WebsitePanel extends Sidebar {
         super(manager); this.panel = panel; this.restored = true;
         this.resolveWebviewView(panel);
         panel.onDidDispose(() => { manager.webPanels = manager.webPanels.filter(p => p !== this); }, undefined, manager.context.subscriptions);
-        panel.onDidChangeViewState(() => { if (panel.active) manager.activeWebPanel = this; }, undefined, manager.context.subscriptions);
     }
     async open(...args) {
         this.entries = [];
         await super.open(...args);
         const entry = this.entries[0];
         this.panel.title = `${entry.title} · ${this.manager.connections.find(entry.connectionId).name}`;
-        this.manager.activeWebPanel = this;
         this.update();
         return this;
     }

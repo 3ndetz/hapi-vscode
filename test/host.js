@@ -157,7 +157,7 @@ async function run() {
         manager.sidebar.remove(ca.id); manager.sidebar.remove(cb.id);
         assert.equal(await manager.context.secrets.get(manager.connections.secretKey(ca.id)), undefined);
         assert.equal(manager.chats.length, 0);
-        console.log('HOST CHECK PASSED: separate left configuration and right chat sidebar, offline tree chats with missing focus commands, live light/dark website sync, folder groups, saved profiles, parallel websites on 2 hubs, native new-chat form, mixed interfaces, 3 custom panels, live messages, approvals, native spawn and SecretStorage cleanup.');
+        console.log('HOST CHECK PASSED: configured proxy and forced direct under VS Code override; three simultaneous native website columns plus right sidebar; duplicated conversations, pinned hub selectors and live theme sync; grouped folders, auto-login, new-chat forms, mixed interfaces, custom messaging and approvals, native spawn and SecretStorage cleanup.');
     } finally {
         manager?.connections.dispose();
         manager?.sidebar.dispose();
