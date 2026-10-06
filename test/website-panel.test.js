@@ -28,11 +28,18 @@ test('independent website panels duplicate chats, pin profiles, retain safe navi
         assert.ok(!JSON.stringify(first.panel.state).includes(a.token));
         assert.ok(!JSON.stringify(first.metadata()).includes('token='));
         assert.ok(!saved.has('sidebarTabs'), 'Panels do not overwrite the independently persisted sidebar.');
+        const navigated = a.addSession('navigated'); navigated.metadata.name = 'UNIONCLEF-HARD';
         await first.receive({ type: 'navigate', id: first.entries[0].id, path: '/sessions/navigated' });
         assert.equal(first.metadata().sessionId, 'navigated'); assert.equal(duplicate.metadata().sessionId, 'same');
         assert.equal(new URL(first.entries[0].url).pathname, '/sessions/navigated');
+        assert.equal(first.panel.title, 'UNIONCLEF-HARD · A');
+        assert.equal(first.metadata().title, 'UNIONCLEF-HARD');
+        assert.equal(first.panel.state.entries[0].title, 'UNIONCLEF-HARD');
+        assert.equal(first.entries[0].reload, undefined, 'Updating the tab title leaves the native website loaded.');
         await first.receive({ type: 'navigate', id: first.entries[0].id, path: '/outside' });
         assert.equal(first.metadata().sessionId, 'navigated');
+        await first.receive({ type: 'navigate', id: first.entries[0].id, path: '/sessions/missing' });
+        assert.equal(first.panel.title, 'Chat · A', 'Unavailable metadata never turns into a raw API identifier.');
         await first.receive({ type: 'action', action: 'detach' }); assert.equal(manager.lastCommand, 'workbench.action.moveEditorToNewWindow');
         await first.receive({ type: 'profile', id: cb.id }); assert.equal(first.metadata().connectionId, cb.id); assert.equal(duplicate.metadata().connectionId, ca.id);
         await duplicate.receive({ type: 'action', action: 'newChat' }); assert.equal(duplicate.metadata().sessionId, 'new');

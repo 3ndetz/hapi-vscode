@@ -31,10 +31,9 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         secrets: { get: async k => secrets.get(k), store: async (k, v) => secrets.set(k, v), delete: async k => secrets.delete(k) } };
     const connections = new Connections(context);
     const a = await connections.save({ name: 'A', url: hub.url }, hub.token), b = await connections.save({ name: 'B', url: hub.url }, 'different-key');
-    const settings = new Map(), commands = [];
-    const vscode = { Uri: { joinPath: (...p) => path.join(...p) }, ColorThemeKind: { Light: 1, HighContrastLight: 4 }, ConfigurationTarget: { Global: 1 },
-        workspace: { getConfiguration: () => ({ get: (key, fallback) => settings.get(key) ?? fallback,
-            update: async (key, value, target) => { assert.equal(target, 1); settings.set(key, value); } }) },
+    const commands = [];
+    const vscode = { Uri: { joinPath: (...p) => path.join(...p) }, ColorThemeKind: { Light: 1, HighContrastLight: 4 },
+        workspace: { getConfiguration: () => ({ get: (_, fallback) => fallback }) },
         commands: { executeCommand: async command => commands.push(command) }, window: { activeColorTheme: { kind: 2 } } };
     const manager = { context, connections, vscode, updateSelection: () => sidebar.update() };
     const sidebar = new Sidebar(manager);
@@ -44,14 +43,6 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         await sidebar.open(a.id, 'same', 'Chat A'); await sidebar.open(b.id, 'same', 'Chat B');
         assert.equal(sidebar.entries.length, 2); assert.equal(state.selected, b.id); assert.equal(state.theme, 'dark');
         const first = sidebar.entries[0];
-        assert.equal(state.webZoom, 70);
-        const adapters = [...sidebar.proxies.values()], urls = sidebar.entries.map(e => e.url);
-        await sidebar.receive({ type: 'zoom', value: 85 });
-        assert.equal(state.webZoom, 85); assert.equal(settings.get('webZoom'), 85);
-        for (const value of [0, 201, NaN, '70']) await sidebar.receive({ type: 'zoom', value });
-        assert.equal(settings.get('webZoom'), 85, 'Invalid renderer values cannot overwrite saved zoom.');
-        assert.deepEqual([...sidebar.proxies.values()], adapters); assert.deepEqual(sidebar.entries.map(e => e.url), urls);
-        assert.ok(sidebar.entries.every(e => !e.reload), 'Changing website scale preserves websites and streams.');
         await connections.select(a.id);
         await sidebar.receive({ type: 'action', action: 'showChats' });
         assert.equal(connections.selected().id, b.id, 'The full tree focuses the hub pinned to this chat.');

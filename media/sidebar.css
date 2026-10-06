@@ -2,24 +2,19 @@
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
 body{display:flex;flex-direction:column;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-sideBar-background)}
 header{height:26px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding:1px 5px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
-#choose-chat{flex:1;min-width:0;text-align:left;display:flex;gap:6px;background:transparent;color:var(--vscode-foreground);font-size:11px;padding:2px 3px}
+#settings-toggle{flex:1;min-width:0;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px;background:transparent;color:var(--vscode-foreground);font-size:11px;padding:2px 3px}
 #chat-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#settings-toggle{background:transparent;color:var(--vscode-foreground);padding:1px 5px}
 #settings{position:absolute;top:26px;right:5px;left:5px;z-index:10;max-height:calc(100% - 36px);overflow:auto;padding:8px;box-sizing:border-box;border:1px solid var(--vscode-widget-border,var(--vscode-panel-border));background:var(--vscode-editorWidget-background,var(--vscode-sideBar-background));box-shadow:0 4px 12px var(--vscode-widget-shadow)}
 #settings[hidden]{display:none}
 .setting{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 label{width:40px;flex-shrink:0;color:var(--vscode-descriptionForeground)}
-.actions{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--vscode-panel-border);padding-top:6px}
-.actions button{text-align:left}
 select{flex:1;min-width:0;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);padding:4px}
 button{cursor:pointer;border:0;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);padding:4px 7px;flex-shrink:0}
 button:hover{background:var(--vscode-button-secondaryHoverBackground)}
 button:disabled{opacity:.5;cursor:default}
 select:focus-visible,button:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:1px}
 #frames{flex:1;min-height:0;position:relative}
-iframe{border:0;width:100%;height:100%;position:absolute;inset:0;transform-origin:top left}
+iframe{border:0;width:100%;height:100%;position:absolute;inset:0}
 iframe[hidden],#empty[hidden]{display:none}
 #empty{padding:24px 16px;color:var(--vscode-descriptionForeground)}
 #empty h2{font-size:16px;font-weight:500;color:var(--vscode-foreground)}
-#empty button{margin:6px 4px 0 0}
-body:not(.panel) [data-action="detach"] { display: none; }

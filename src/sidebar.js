@@ -2,6 +2,7 @@
 const { randomBytes, randomUUID } = require('node:crypto');
 const { websiteProxy } = require('./proxy');
 const { webUrl } = require('./web');
+const { title } = require('./messages');
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 class Sidebar {
     constructor(manager) { this.manager = manager; this.entries = []; this.proxies = manager.websiteAdapters || new Map(); this.activeId = ''; }
@@ -12,13 +13,12 @@ class Sidebar {
         const nonce = randomBytes(24).toString('base64');
         const asset = name => escape(view.webview.asWebviewUri(vscode.Uri.joinPath(this.manager.context.extensionUri, 'media', name)).toString());
         view.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; style-src ${escape(view.webview.cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('sidebar.css')}"></head><body>
-<header><button id="choose-chat" data-action="showChats" title="Choose a chat in Connections and Folders" aria-label="Choose a chat in Connections and Folders">☰ <span id="chat-title">Choose chat</span></button><button id="settings-toggle" title="Chat settings" aria-label="Chat settings" aria-expanded="false" aria-controls="settings">⚙</button></header>
+<header><button id="settings-toggle" title="Hub and proxy settings" aria-label="Hub and proxy settings" aria-expanded="false" aria-controls="settings"><span id="chat-title">HAPI</span><span aria-hidden="true">⚙</span></button></header>
 <section id="settings" aria-label="Chat settings" hidden>
-<div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select><button data-action="addConnection" title="Add connection" aria-label="Add connection">＋</button></div>
+<div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select></div>
 <div class="setting"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div>
-<div class="setting"><label for="web-zoom">Scale</label><select id="web-zoom" aria-label="Website scale"><option value="50">50%</option><option value="60">60%</option><option value="70">70% (default)</option><option value="80">80%</option><option value="90">90%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="200">200%</option></select></div>
-<div class="actions"><button data-action="showChats">Choose chat in Connections</button><button data-action="newChat">New chat</button><button data-action="openBeside">Open chat beside</button><button data-action="newWindow">New chat window</button><button data-action="detach">Move into separate window</button><button data-action="browser">Open in integrated browser</button><button data-action="reloadChat">Reload website</button><button id="close-chat">Close this view</button></div></section>
-<section id="empty"><h2>Your chats open here</h2><p>Select a chat in HAPI Connections on the left, or start a new chat.</p><button data-action="showChats">Connections and folders</button><button data-action="newChat">New chat</button></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
+</section>
+<section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
         view.onDidDispose(() => { this.view = undefined; }, undefined, this.manager.context.subscriptions);
         (view.onDidChangeVisibility || view.onDidChangeViewState).call(view, () => { if (view.visible) this.update(); }, undefined, this.manager.context.subscriptions);
@@ -27,13 +27,6 @@ class Sidebar {
     async receive(message) {
         const m = this.manager;
         if (message?.type === 'ready') return this.update();
-        if (message?.type === 'zoom') {
-            if (Number.isFinite(message.value) && message.value >= 50 && message.value <= 200) {
-                await m.vscode.workspace.getConfiguration('hapiChat').update('webZoom', message.value, m.vscode.ConfigurationTarget.Global);
-                m.updateSelection();
-            }
-            return;
-        }
         if (message?.type === 'proxy') {
             const id = this.entries.find(e => e.id === this.activeId)?.connectionId || m.connections.selected()?.id;
             if (id) await m.setConnectionProxy(id, message.mode);
@@ -50,9 +43,9 @@ class Sidebar {
                 try { entry.sessionId = decodeURIComponent(suffix.split('/')[1]); } catch { return; }
             } else return;
             if (previous === entry.sessionId) return;
-            if (entry.sessionId && entry.sessionId !== 'new') entry.title = entry.sessionId;
+            entry.title = entry.sessionId === 'new' ? 'New chat' : entry.sessionId ? 'Chat' : m.connections.find(entry.connectionId).name;
             const local = new URL(entry.url); local.pathname = message.path; entry.url = local.href;
-            this.save(); this.update(); return;
+            this.save(); this.update(); await this.refreshTitle(entry); return;
         }
         if (message?.type === 'profile' && m.connections.find(message.id)) { await m.connections.select(message.id); m.updateSelection(); await m.openHub(message.id); }
         if (message?.type === 'activate' && this.entries.some(e => e.id === message.id)) { this.activeId = message.id; await m.connections.select(this.entries.find(e => e.id === message.id).connectionId); this.save(); m.updateSelection(); }
@@ -94,13 +87,27 @@ class Sidebar {
         const proxy = await promise;
         const remote = new URL(webUrl(connection.url, sessionId));
         if (directory) remote.searchParams.set('directory', directory);
-        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, adapterId, title: label || (sessionId === 'new' ? 'New chat' : connection.name), url: proxy.loginUrl(remote.href) });
+        if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, adapterId, title: label && label !== sessionId ? label : sessionId === 'new' ? 'New chat' : sessionId ? 'Chat' : connection.name, url: proxy.loginUrl(remote.href) });
         else if (!existing && this.entries.find(e => e.id === id).adapterId !== adapterId) this.release({ connectionId, adapterId });
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
         if (!restoring) await this.reveal();
         this.update();
+        void this.refreshTitle(this.entries.find(e => e.id === id));
+    }
+    async refreshTitle(entry) {
+        if (!entry?.sessionId || entry.sessionId === 'new') return;
+        const sessionId = entry.sessionId;
+        const request = entry.titleRequest = (entry.titleRequest || 0) + 1;
+        try {
+            const { session } = await this.manager.connections.client(entry.connectionId).session(sessionId);
+            // Navigation and profile changes may overtake this read. Never apply
+            // an old response to a different session or a closed website.
+            if (!session || session.id !== sessionId || !this.entries.includes(entry) || entry.sessionId !== sessionId || entry.titleRequest !== request) return;
+            const name = title({ metadata: session.metadata });
+            if (entry.title !== name) { entry.title = name; this.save(); this.update(); }
+        } catch { /* The website remains usable if its metadata is unavailable. */ }
     }
     async reveal() {
         // A resolved view can reveal itself, including after being moved or hidden.
@@ -122,7 +129,6 @@ class Sidebar {
         void this.view.webview.postMessage({ type: 'state', profiles: m.connections.list(), selected: this.panel ? this.entries[0]?.connectionId : m.connections.selected()?.id, entries: this.entries, activeId: this.activeId,
             panel: !!this.panel, navigation: this.panel ? this.metadata() : undefined,
             globalProxy: m.vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy', true),
-            webZoom: m.vscode.workspace.getConfiguration('hapiChat').get('webZoom', 70),
             theme: [m.vscode.ColorThemeKind.Light, m.vscode.ColorThemeKind.HighContrastLight].includes(m.vscode.window.activeColorTheme.kind) ? 'light' : 'dark',
             syncTheme: m.vscode.workspace.getConfiguration('hapiChat').get('syncEditorTheme', true) });
     }
