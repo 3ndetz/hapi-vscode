@@ -6,7 +6,7 @@ A small, independent client for [HAPI](https://github.com/tiann/hapi). **Connect
 
 ## Install and connect
 
-Install **3ndetz.hapi-chat** from [Open VSX](https://open-vsx.org/extension/3ndetz/hapi-chat), or download a `.vsix` from [GitHub Releases](https://github.com/3ndetz/hapi-vscode/releases) and run **Extensions: Install from VSIX…** in VS Code.
+Install **3ndetz.hapi-chat** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=3ndetz.hapi-chat) in VS Code, or from [Open VSX](https://open-vsx.org/extension/3ndetz/hapi-chat). You can also download a `.vsix` from [GitHub Releases](https://github.com/3ndetz/hapi-vscode/releases) and run **Extensions: Install from VSIX…** in VS Code.
 
 After installing an update, run **Developer: Reload Window** so that the current window loads the new sidebar contribution. If VS Code reports that the HAPI sidebar is unavailable, reload the window and open the chat again. Reloading keeps saved profiles and tokens.
 
@@ -68,6 +68,8 @@ Keep connections and folders on the left and the primary website chat on the rig
 **⚙ → New chat window** or **HAPI: New Chat Window** opens a fresh HAPI new-session form in its own column. A folder's context menu carries its directory into that form. This is HAPI's real website, with the same native features and runner-side project rules. Each window has its own saved-profile selector and stays on its own hub when another window changes profile. Keys are read from SecretStorage automatically. Closing a window closes its website only; it does not stop an agent. Use VS Code's **Move into New Window** editor-tab action to detach a chat panel, or **HAPI: Open in Integrated Browser** for an independent browser tab.
 
 Website preferences and drafts belong to each instance's local origin. Duplicate instances sign in from the same saved profile but use independent browser storage. Panels restore their safe navigation metadata after a VS Code reload. A small adapter bridge observes the website's current session path so that opening beside, reloading and restoring follow chats created or selected inside the native website. It never reports tokens or conversation text. If a hub's own content-security policy blocks the bridge, use the session tree to open the desired chat; native website framing/security policies are respected.
+
+Embedded chats skip HAPI's one-time composer tips for scratchlists and rich mentions, so the “Got it” popovers do not repeat in each new window. The composer features remain available. Ordinary browser tabs keep HAPI's normal onboarding.
 
 **⚙ → Open in browser** (or **HAPI: Open in Browser**) opens the current session in the operating system's default browser with automatic login. A separate temporary loopback adapter consumes a scoped capability and authenticates through the saved profile. The real hub key never enters the URL. Closing the chat view leaves this browser adapter running; keep VS Code open to use it. Editing/removing its profile or shutting down the extension stops the adapter. Browser display preferences are independent of the embedded chat. If the adapter or saved-profile authentication is unavailable, the button opens the original hub URL for normal browser login.
 

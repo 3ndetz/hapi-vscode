@@ -3,6 +3,13 @@
 // its native font-size variable renders text without scaling the iframe.
 function websiteBridge() {
     if (parent === window) return;
+    // Every embedded instance has its own origin. Avoid repeating HAPI's
+    // composer onboarding in each new chat, before React reads these keys.
+    try {
+        for (const feature of ['scratchlist-toggle', 'rich-composer-mentions']) {
+            localStorage.setItem('hapi.fue.v1.' + feature, '1');
+        }
+    } catch { /* Website storage restrictions remain in force. */ }
     const key = 'hapi-font-scale', scales = [0.8, 0.9, 1, 1.1, 1.2];
     const initializedKey = 'hapi-vscode-font-initialized';
     let path, display;
