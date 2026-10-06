@@ -102,7 +102,10 @@ async function run() {
         const websiteDuplicate = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Duplicate A' });
         const websiteB = await manager.openWindow({ connectionId: cb.id, sessionId: sb.id, label: 'Independent B' });
         await waitFor(() => manager.webPanels.length === 3 && manager.webPanels.every(p => p.panel.visible));
-        await waitFor(() => a.requests.filter(r => r.route === `sessions/${sa.id}`).length >= 3 && b.requests.filter(r => r.route === `sessions/${sb.id}`).length >= 2);
+        // Chromium can coalesce identical simultaneous document requests. Count
+        // authenticated reports from distinct JavaScript contexts instead.
+        const websiteInstances = (hub, id) => new Set(hub.requests.filter(r => r.route === 'api/sessions' && r.query.page === new URL(`sessions/${id}`, hub.url).pathname && r.query.view).map(r => r.query.view)).size;
+        await waitFor(() => websiteInstances(a, sa.id) >= 3 && websiteInstances(b, sb.id) >= 2);
         assert.equal(new Set(manager.webPanels.map(p => p.panel.viewColumn)).size, 3, 'Three native chat columns are visible simultaneously.');
         assert.equal(manager.sidebar.view.visible, true, 'The right sidebar stays alongside independent website windows.');
         await manager.connections.select(cb.id); manager.updateSelection();
