@@ -11,7 +11,14 @@ class Sidebar {
         view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.manager.context.extensionUri, 'media')] };
         const nonce = randomBytes(24).toString('base64');
         const asset = name => escape(view.webview.asWebviewUri(vscode.Uri.joinPath(this.manager.context.extensionUri, 'media', name)).toString());
-        view.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; style-src ${escape(view.webview.cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('sidebar.css')}"></head><body><header><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select><button data-action="newChat" title="New chat" aria-label="New chat">＋</button><button data-action="showChats" title="Connections and folders" aria-label="Connections and folders">☰</button><button data-action="browser" title="Open in integrated browser" aria-label="Open in integrated browser">↗</button></header><nav aria-label="Open HAPI chats"><label for="conversation">Chat</label><select id="conversation" aria-label="Open chat"></select><button id="close-chat" title="Close this chat" aria-label="Close this chat">×</button><button data-action="openBeside" title="Open this chat beside" aria-label="Open this chat beside">◫</button><button data-action="newWindow" title="New chat window beside" aria-label="New chat window beside">＋</button><button data-action="detach" title="Move chat into a separate window" aria-label="Move chat into a separate window">↗</button><button data-action="reloadChat" title="Reload this website" aria-label="Reload this website">↻</button></nav><div class="network"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div><section id="empty"><h2>Your chats open here</h2><p>Select a chat in HAPI Connections on the left, or start a new chat.</p><button data-action="showChats">Connections and folders</button><button data-action="newChat">New chat</button></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
+        view.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; style-src ${escape(view.webview.cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${asset('sidebar.css')}"></head><body>
+<header><button id="choose-chat" data-action="showChats" title="Choose a chat in Connections and Folders" aria-label="Choose a chat in Connections and Folders">☰ <span id="chat-title">Choose chat</span></button><button id="settings-toggle" title="Chat settings" aria-label="Chat settings" aria-expanded="false" aria-controls="settings">⚙</button></header>
+<section id="settings" aria-label="Chat settings" hidden>
+<div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select><button data-action="addConnection" title="Add connection" aria-label="Add connection">＋</button></div>
+<div class="setting"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div>
+<div class="setting"><label for="web-zoom">Scale</label><select id="web-zoom" aria-label="Website scale"><option value="50">50%</option><option value="60">60%</option><option value="70">70% (default)</option><option value="80">80%</option><option value="90">90%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="200">200%</option></select></div>
+<div class="actions"><button data-action="showChats">Choose chat in Connections</button><button data-action="newChat">New chat</button><button data-action="openBeside">Open chat beside</button><button data-action="newWindow">New chat window</button><button data-action="detach">Move into separate window</button><button data-action="browser">Open in integrated browser</button><button data-action="reloadChat">Reload website</button><button id="close-chat">Close this view</button></div></section>
+<section id="empty"><h2>Your chats open here</h2><p>Select a chat in HAPI Connections on the left, or start a new chat.</p><button data-action="showChats">Connections and folders</button><button data-action="newChat">New chat</button></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
         view.onDidDispose(() => { this.view = undefined; }, undefined, this.manager.context.subscriptions);
         (view.onDidChangeVisibility || view.onDidChangeViewState).call(view, () => { if (view.visible) this.update(); }, undefined, this.manager.context.subscriptions);
@@ -20,6 +27,13 @@ class Sidebar {
     async receive(message) {
         const m = this.manager;
         if (message?.type === 'ready') return this.update();
+        if (message?.type === 'zoom') {
+            if (Number.isFinite(message.value) && message.value >= 50 && message.value <= 200) {
+                await m.vscode.workspace.getConfiguration('hapiChat').update('webZoom', message.value, m.vscode.ConfigurationTarget.Global);
+                m.updateSelection();
+            }
+            return;
+        }
         if (message?.type === 'proxy') {
             const id = this.entries.find(e => e.id === this.activeId)?.connectionId || m.connections.selected()?.id;
             if (id) await m.setConnectionProxy(id, message.mode);
@@ -49,7 +63,10 @@ class Sidebar {
             if (message.action === 'newChat') await m.newChat();
             if (message.action === 'addConnection') await m.configure();
             if (message.action === 'openHub') await m.openHub();
-            if (message.action === 'showChats') await m.vscode.commands.executeCommand('hapiChat.sessions.focus');
+            if (message.action === 'showChats') {
+                if (active) { await m.connections.select(active.connectionId); m.updateSelection(); }
+                await m.vscode.commands.executeCommand('hapiChat.sessions.focus');
+            }
             if (message.action === 'reloadChat' && active) { active.reload = (active.reload || 0) + 1; this.update(); }
             if (message.action === 'openBeside') await m.openWindow(active);
             if (message.action === 'newWindow') await m.newWindow(active);
@@ -105,6 +122,7 @@ class Sidebar {
         void this.view.webview.postMessage({ type: 'state', profiles: m.connections.list(), selected: this.panel ? this.entries[0]?.connectionId : m.connections.selected()?.id, entries: this.entries, activeId: this.activeId,
             panel: !!this.panel, navigation: this.panel ? this.metadata() : undefined,
             globalProxy: m.vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy', true),
+            webZoom: m.vscode.workspace.getConfiguration('hapiChat').get('webZoom', 70),
             theme: [m.vscode.ColorThemeKind.Light, m.vscode.ColorThemeKind.HighContrastLight].includes(m.vscode.window.activeColorTheme.kind) ? 'light' : 'dark',
             syncTheme: m.vscode.workspace.getConfiguration('hapiChat').get('syncEditorTheme', true) });
     }

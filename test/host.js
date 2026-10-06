@@ -13,6 +13,7 @@ async function run() {
     console.log('HOST CHECK: initializing the isolated editor.');
     const configuration = vscode.workspace.getConfiguration('hapiChat');
     assert.equal(configuration.get('chatMode'), 'web', 'The full website is the default interface.');
+    assert.equal(configuration.get('webZoom'), 70, 'Native websites default to 30% smaller scale.');
     const a = await mockHub('/workflow/1/', 'isolated-key-a'), b = await mockHub('/hub/', 'isolated-key-b');
     let manager;
     try {
@@ -113,6 +114,12 @@ async function run() {
         const websiteB = await manager.openWindow({ connectionId: cb.id, sessionId: sb.id, label: 'Independent B' });
         assert.equal(websiteA.panel.iconPath.fsPath, vscode.Uri.joinPath(manager.context.extensionUri, 'media', 'icon.png').fsPath);
         assert.ok(manager.sidebar.view.webview.html.includes('id="proxy-mode"'));
+        const websiteUrl = websiteA.entries[0].url;
+        const websiteReload = websiteA.entries[0].reload;
+        await websiteA.receive({ type: 'zoom', value: 85 });
+        assert.equal(vscode.workspace.getConfiguration('hapiChat').get('webZoom'), 85, 'Menu scale is saved in real VS Code settings.');
+        assert.equal(websiteA.entries[0].url, websiteUrl); assert.equal(websiteA.entries[0].reload, websiteReload);
+        await configuration.update('webZoom', undefined, vscode.ConfigurationTarget.Global);
         const bReload = websiteB.entries[0].reload;
         await websiteA.receive({ type: 'proxy', mode: 'direct' });
         assert.equal(manager.connections.find(ca.id).proxyMode, 'direct');
