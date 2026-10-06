@@ -128,9 +128,16 @@ async function run() {
         assert.equal(manager.sidebar.view.visible, true, 'The right sidebar stays alongside independent website windows.');
         await manager.connections.select(cb.id); manager.updateSelection();
         assert.equal(websiteA.metadata().connectionId, ca.id); assert.equal(websiteB.metadata().connectionId, cb.id);
-        const schemesBefore = a.requests.filter(r => r.route === 'api/sessions' && r.query.scheme === 'light').length;
+        const websiteScheme = chat => {
+            const origin = new URL(chat.entries[0].url).origin;
+            const hub = chat.entries[0].connectionId === ca.id ? a : b;
+            return hub.requests.filter(r => r.route === 'api/sessions' && r.query.origin === origin && r.query.pipes === 'ready').at(-1)?.query.scheme;
+        };
+        // A configuration write can finish before native media queries update.
+        // Establish the starting scheme for these exact live websites first.
+        await waitFor(() => [websiteA, websiteDuplicate, websiteB].every(chat => websiteScheme(chat) === 'dark'));
         await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
-        await waitFor(() => a.requests.filter(r => r.route === 'api/sessions' && r.query.scheme === 'light').length >= schemesBefore + 2);
+        await waitFor(() => [websiteA, websiteDuplicate, websiteB].every(chat => websiteScheme(chat) === 'light'));
         await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Dark Modern', vscode.ConfigurationTarget.Global);
         await websiteA.receive({ type: 'action', action: 'newChat' });
         assert.equal(websiteA.metadata().sessionId, 'new'); assert.equal(websiteDuplicate.metadata().sessionId, sa.id);
