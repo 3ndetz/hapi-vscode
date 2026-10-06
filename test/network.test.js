@@ -1,26 +1,11 @@
 'use strict';
 const { test } = require('node:test'), assert = require('node:assert/strict');
-const http = require('node:http'), net = require('node:net'), os = require('node:os');
+const http = require('node:http'), os = require('node:os');
 const { Network, bypass } = require('../src/network');
 const { HapiClient } = require('../src/client');
 const { websiteProxy } = require('../src/proxy');
 const { mockHub } = require('./mock-hub');
-async function mockProxy() {
-    const requests = [], sockets = new Set();
-    const server = http.createServer((_, res) => res.writeHead(502).end());
-    server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
-    server.on('connect', (req, socket, head) => {
-        requests.push({ target: req.url, auth: req.headers['proxy-authorization'] });
-        const url = new URL('http://' + req.url);
-        const remote = net.connect(Number(url.port), url.hostname);
-        sockets.add(remote); remote.on('close', () => sockets.delete(remote));
-        remote.on('connect', () => { socket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); if (head.length) remote.write(head); socket.pipe(remote).pipe(socket); });
-        remote.on('error', () => socket.destroy()); socket.on('error', () => remote.destroy());
-        socket.on('close', () => remote.destroy()); remote.on('close', () => socket.destroy());
-    });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    return { url: `http://127.0.0.1:${server.address().port}`, requests, close: async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); } };
-}
+const { mockProxy } = require('./mock-proxy');
 test('proxy and explicit direct mode cover native auth, API and embedded website traffic without changing global settings', async () => {
     const host = Object.values(os.networkInterfaces()).flat().find(n => !n.internal && n.family === 'IPv4')?.address;
     assert.ok(host, 'A non-loopback interface is required to verify real proxy routing.');
@@ -88,4 +73,3 @@ test('loopback and exclusions bypass proxy; credentials never appear in validati
     assert.throws(() => network.dispatcher('https://hub.invalid/'), e => !e.message.includes('private') && !e.message.includes('secret'));
     network.dispose();
 });
-module.exports = { mockProxy };

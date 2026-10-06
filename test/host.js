@@ -2,6 +2,8 @@
 const vscode = require('vscode');
 const assert = require('node:assert/strict');
 const { mockHub } = require('./mock-hub');
+const { mockProxy } = require('./mock-proxy');
+const os = require('node:os');
 const waitFor = async predicate => {
     for (let n = 0; n < 600; n++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
     throw new Error('Timed out waiting for live chat updates.');
@@ -17,6 +19,27 @@ async function run() {
         assert.ok(extension, 'Extension is installed in the development host.');
         manager = await extension.activate();
         console.log('HOST CHECK: extension active.');
+        const address = Object.values(os.networkInterfaces()).flat().find(n => !n.internal && n.family === 'IPv4')?.address;
+        const networkHub = await mockHub('/proxy-check/', 'proxy-check-key', address), proxy = await mockProxy();
+        const httpConfig = vscode.workspace.getConfiguration('http');
+        let networkProfile;
+        try {
+            await httpConfig.update('proxy', proxy.url, vscode.ConfigurationTarget.Global);
+            await httpConfig.update('proxySupport', 'override', vscode.ConfigurationTarget.Global);
+            networkProfile = await manager.connections.save({ name: 'Proxy routing fixture', url: networkHub.url }, networkHub.token);
+            await manager.connections.client(networkProfile.id).sessions();
+            assert.ok(proxy.requests.length > 0, 'Extension requests honor VS Code http.proxy under the real extension host.');
+            const before = proxy.requests.length;
+            await configuration.update('useVSCodeProxy', false, vscode.ConfigurationTarget.Global);
+            await manager.connections.client(networkProfile.id).sessions();
+            assert.equal(proxy.requests.length, before, 'Explicit direct mode bypasses even VS Code proxySupport override.');
+        } finally {
+            if (networkProfile) await manager.connections.remove(networkProfile.id);
+            await configuration.update('useVSCodeProxy', undefined, vscode.ConfigurationTarget.Global);
+            await httpConfig.update('proxy', undefined, vscode.ConfigurationTarget.Global);
+            await httpConfig.update('proxySupport', undefined, vscode.ConfigurationTarget.Global);
+            await proxy.close(); await networkHub.close();
+        }
         const ca = await manager.connections.save({ name: 'Test Hub A', url: a.url }, a.token);
         const cb = await manager.connections.save({ name: 'Test Hub B', url: b.url }, b.token);
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
