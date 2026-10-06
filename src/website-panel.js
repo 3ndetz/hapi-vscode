@@ -6,6 +6,7 @@ const { Sidebar } = require('./sidebar');
 class WebsitePanel extends Sidebar {
     constructor(manager, panel) {
         super(manager); this.panel = panel; this.restored = true;
+        panel.iconPath = manager.vscode.Uri.joinPath(manager.context.extensionUri, 'media', 'icon.png');
         this.resolveWebviewView(panel);
         panel.onDidDispose(() => { manager.webPanels = manager.webPanels.filter(p => p !== this); }, undefined, manager.context.subscriptions);
     }

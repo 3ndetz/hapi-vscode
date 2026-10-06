@@ -22,10 +22,12 @@ class Connections {
         return result;
     }
     secretKey(id) { return `hapi.connection.${id}.token`; }
-    save({ id = randomUUID(), name, url }, token) { return this.mutate(async () => {
-        const connection = { id, name: name.trim(), url: normalizeUrl(url) };
-        if (!connection.name) throw new Error('A connection name is required.');
+    save({ id = randomUUID(), name, url, proxyMode }, token) { return this.mutate(async () => {
         const previous = this.find(id);
+        proxyMode ??= previous?.proxyMode || 'inherit';
+        if (!['inherit', 'proxy', 'direct'].includes(proxyMode)) throw Error('Choose global settings, VS Code proxy or direct connection.');
+        const connection = { id, name: name.trim(), url: normalizeUrl(url), proxyMode };
+        if (!connection.name) throw new Error('A connection name is required.');
         if (previous && previous.url !== connection.url && !token?.trim()) throw new Error('Enter a token for the new endpoint.');
         if (token !== undefined) await this.context.secrets.store(this.secretKey(id), token.trim());
         const list = this.list().filter(c => c.id !== id);
@@ -34,6 +36,14 @@ class Connections {
         this.records = records;
         this.clients.get(id)?.dispose(); this.clients.delete(id);
         return connection;
+    }); }
+    setProxyMode(id, proxyMode) { return this.mutate(async () => {
+        if (!['inherit', 'proxy', 'direct'].includes(proxyMode)) throw Error('Choose global settings, VS Code proxy or direct connection.');
+        if (!this.find(id)) throw Error('This connection was removed.');
+        const records = this.list().map(c => c.id === id ? { ...c, proxyMode } : c);
+        await this.context.globalState.update('connections', records);
+        this.records = records;
+        // Existing clients and adapters read the new policy without losing login.
     }); }
     remove(id) { return this.mutate(async () => {
         await this.context.secrets.delete(this.secretKey(id));
@@ -46,8 +56,9 @@ class Connections {
         const connection = this.find(id);
         if (!connection) throw new Error('This connection was removed. Add it again to open the chat.');
         if (!this.clients.has(id)) {
-            const client = new HapiClient(connection.url, () => this.context.secrets.get(this.secretKey(id)), this.network ? this.network.fetch.bind(this.network) : undefined);
-            client.network = this.network;
+            const network = this.network?.forConnection(() => this.find(id)?.proxyMode || 'inherit');
+            const client = new HapiClient(connection.url, () => this.context.secrets.get(this.secretKey(id)), network?.fetch);
+            client.network = network;
             this.clients.set(id, client);
         }
         return this.clients.get(id);

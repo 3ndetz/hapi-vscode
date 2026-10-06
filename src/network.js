@@ -19,11 +19,16 @@ function bypass(url, entries) {
 // No global environment, dispatcher or TLS settings are changed.
 class Network {
     constructor(settings = () => ({}), env = process.env) { this.settings = settings; this.env = env; this.agents = new Map(); }
-    dispatcher(input) {
+    forConnection(mode) {
+        // Share owned agents, but resolve this profile's policy on every request.
+        return Object.fromEntries(['fetch', 'request', 'upgrade'].map(method => [method, (input, options) => this[method](input, options, mode())]));
+    }
+    dispatcher(input, mode) {
         const url = new URL(input), s = this.settings(), env = this.env;
         const exclusions = [...(Array.isArray(s.noProxy) ? s.noProxy : []), ...(env.no_proxy || env.NO_PROXY || '').split(',')];
         let proxy;
-        if (s.useProxy !== false && s.proxySupport !== 'off' && !bypass(url, exclusions)) {
+        const useProxy = mode === 'direct' ? false : mode === 'proxy' ? true : s.useProxy !== false;
+        if (useProxy && s.proxySupport !== 'off' && !bypass(url, exclusions)) {
             proxy = s.proxy || (url.protocol === 'https:' ? env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY : env.http_proxy || env.HTTP_PROXY || env.https_proxy || env.HTTPS_PROXY);
         }
         const rejectUnauthorized = s.strictSSL !== false;
@@ -44,9 +49,9 @@ class Network {
         }
         return this.agents.get(key);
     }
-    fetch(input, options) { return undiciFetch(input, { ...options, dispatcher: this.dispatcher(input) }); }
-    request(input, options) { const url = new URL(input); return this.dispatcher(url).request({ ...options, origin: url.origin, path: url.pathname + url.search, headersTimeout: 60_000, bodyTimeout: 0 }); }
-    upgrade(input, options) { const url = new URL(input); return this.dispatcher(url).upgrade({ ...options, origin: url.origin, path: url.pathname + url.search }); }
+    fetch(input, options, mode) { return undiciFetch(input, { ...options, dispatcher: this.dispatcher(input, mode) }); }
+    request(input, options, mode) { const url = new URL(input); return this.dispatcher(url, mode).request({ ...options, origin: url.origin, path: url.pathname + url.search, headersTimeout: 60_000, bodyTimeout: 0 }); }
+    upgrade(input, options, mode) { const url = new URL(input); return this.dispatcher(url, mode).upgrade({ ...options, origin: url.origin, path: url.pathname + url.search }); }
     dispose() { for (const agent of this.agents.values()) void agent.destroy().catch(() => {}); this.agents.clear(); }
 }
 function editorNetwork(vscode) {

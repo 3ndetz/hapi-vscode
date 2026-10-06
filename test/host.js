@@ -37,6 +37,16 @@ async function run() {
             await waitFor(() => vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy') === false);
             await manager.connections.client(networkProfile.id).sessions();
             assert.equal(routed(), before, 'Explicit direct mode bypasses even VS Code proxySupport override.');
+            await manager.setConnectionProxy(networkProfile.id, 'proxy');
+            manager.network.dispose();
+            await manager.connections.client(networkProfile.id).sessions();
+            assert.ok(routed() > before, 'Profile proxy mode overrides the disabled global HAPI switch.');
+            const beforeProfileDirect = routed();
+            await configuration.update('useVSCodeProxy', true, vscode.ConfigurationTarget.Global);
+            await waitFor(() => vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy') === true);
+            await manager.setConnectionProxy(networkProfile.id, 'direct');
+            await manager.connections.client(networkProfile.id).sessions();
+            assert.equal(routed(), beforeProfileDirect, 'Profile direct mode overrides the enabled global switch.');
         } finally {
             if (networkProfile) await manager.connections.remove(networkProfile.id);
             await configuration.update('useVSCodeProxy', undefined, vscode.ConfigurationTarget.Global);
@@ -101,6 +111,14 @@ async function run() {
         console.log('HOST CHECK: first independent website window created.');
         const websiteDuplicate = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Duplicate A' });
         const websiteB = await manager.openWindow({ connectionId: cb.id, sessionId: sb.id, label: 'Independent B' });
+        assert.equal(websiteA.panel.iconPath.fsPath, vscode.Uri.joinPath(manager.context.extensionUri, 'media', 'icon.png').fsPath);
+        assert.ok(manager.sidebar.view.webview.html.includes('id="proxy-mode"'));
+        const bReload = websiteB.entries[0].reload;
+        await websiteA.receive({ type: 'proxy', mode: 'direct' });
+        assert.equal(manager.connections.find(ca.id).proxyMode, 'direct');
+        assert.equal(manager.connections.find(cb.id).proxyMode, 'inherit');
+        assert.equal(websiteDuplicate.entries[0].reload, 1);
+        assert.equal(websiteB.entries[0].reload, bReload, 'Changing Hub A proxy does not reload Hub B.');
         await waitFor(() => manager.webPanels.length === 3 && manager.webPanels.every(p => p.panel.visible));
         // Chromium can coalesce identical simultaneous document requests. Count
         // authenticated reports from distinct JavaScript contexts instead.
@@ -135,6 +153,7 @@ async function run() {
         await vscode.env.clipboard.writeText('');
         await configuration.update('chatMode', 'custom', vscode.ConfigurationTarget.Global);
         const chatA = manager.open(ca.id, sa.id), chatB = manager.open(cb.id, sb.id), chatC = manager.open(ca.id, second.id);
+        assert.equal(chatA.panel.iconPath.fsPath, vscode.Uri.joinPath(manager.context.extensionUri, 'media', 'icon.png').fsPath);
         assert.equal(manager.chats.length, 3);
         assert.equal(manager.open(ca.id, sa.id), chatA, 'Repeated open focuses the existing panel.');
         // VS Code initializes a new webview when it becomes visible. Let each

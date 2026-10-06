@@ -10,6 +10,7 @@ class Chat {
         this.window = new MessageWindow(); this.closed = false; this.live = false; this.busy = false; this.draft = draft;
         this.disposables = [];
         const { vscode, context } = manager;
+        panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
         panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] };
         panel.webview.html = chatHtml(vscode, panel.webview, context.extensionUri);
         this.disposables.push(panel.webview.onDidReceiveMessage(message => void this.receive(message).catch(error => this.error(error))));

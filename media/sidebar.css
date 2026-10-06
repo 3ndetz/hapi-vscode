@@ -1,8 +1,8 @@
 :root{color-scheme:light dark}
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
 body{display:flex;flex-direction:column;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-sideBar-background)}
-header,nav{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
-label{width:30px;flex-shrink:0;color:var(--vscode-descriptionForeground)}
+header,nav,.network{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+label{width:35px;flex-shrink:0;color:var(--vscode-descriptionForeground)}
 select{flex:1;min-width:0;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);padding:4px}
 button{cursor:pointer;border:0;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);padding:4px 7px;flex-shrink:0}
 button:hover{background:var(--vscode-button-secondaryHoverBackground)}

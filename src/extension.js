@@ -27,6 +27,7 @@ class Manager {
             addConnection: () => this.configure(),
             selectConnection: () => this.selectConnection(),
             editConnection: async item => { const id = item?.connectionId || (await this.pickConnection())?.id; if (id) return this.configure(id); },
+            connectionProxy: item => this.configureProxy(item?.connectionId),
             removeConnection: item => this.remove(item?.connectionId),
             openChat: item => item?.sessionId ? this.open(item.connectionId, item.sessionId, item.label) : this.pickChat(),
             newChat: item => this.newChat(item?.connectionId, item?.directory),
@@ -125,8 +126,10 @@ class Manager {
             prompt: old && !changedUrl ? 'Leave empty to keep the saved token.' : 'Stored in VS Code SecretStorage. Use the hub login token.',
             validateInput: v => old && !changedUrl || v.trim() ? undefined : 'Enter a token for this hub.' });
         if (token === undefined) return;
+        const proxyMode = await this.pickProxyMode(old?.proxyMode || 'inherit', name);
+        if (proxyMode === undefined) return;
         // An edited endpoint must not keep sending the previous hub's credential.
-        const connection = await this.connections.save({ id: old?.id, name, url }, token.trim() || undefined);
+        const connection = await this.connections.save({ id: old?.id, name, url, proxyMode }, token.trim() || undefined);
         for (const chat of [...this.webPanels]) if (chat.entries[0]?.connectionId === connection.id) chat.panel.dispose();
         this.sidebar.remove(connection.id);
         for (const chat of [...this.chats]) if (chat.connectionId === connection.id) chat.panel.dispose();
@@ -137,6 +140,29 @@ class Manager {
         }
         catch (error) { void vscode.window.showErrorMessage(`${connection.name}: ${error.message} The connection is saved; edit it to retry.`); }
         return connection;
+    }
+    async pickProxyMode(current, name) {
+        const enabled = vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy', true);
+        const choices = [
+            { label: 'Global setting', description: `Currently ${enabled ? 'VS Code proxy' : 'direct'}`, mode: 'inherit' },
+            { label: 'Use VS Code proxy', description: 'Override the HAPI global switch for this hub', mode: 'proxy' },
+            { label: 'Direct connection', description: 'Bypass VS Code and environment proxies for this hub', mode: 'direct' }
+        ].sort((a, b) => Number(b.mode === current) - Number(a.mode === current));
+        return (await vscode.window.showQuickPick(choices, { title: `HAPI proxy · ${name}`, placeHolder: 'Choose how this hub connects' }))?.mode;
+    }
+    async configureProxy(id) {
+        const connection = id ? this.connections.find(id) : await this.pickConnection();
+        if (!connection) return;
+        const mode = await this.pickProxyMode(connection.proxyMode || 'inherit', connection.name);
+        if (mode !== undefined) await this.setConnectionProxy(connection.id, mode);
+    }
+    async setConnectionProxy(id, mode) {
+        await this.connections.setProxyMode(id, mode);
+        for (const container of [this.sidebar, ...this.webPanels]) for (const entry of container.entries) {
+            if (entry.connectionId === id) entry.reload = (entry.reload || 0) + 1;
+        }
+        for (const chat of this.chats) if (chat.connectionId === id) chat.startStream();
+        this.updateSelection();
     }
     async remove(id) {
         id ||= (await this.pickConnection())?.id;
@@ -155,7 +181,7 @@ class Manager {
         if (!element) return this.connections.list().map(c => {
             const item = new vscode.TreeItem(c.name, this.connections.selected()?.id === c.id ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed);
             item.id = c.id; item.connectionId = c.id; item.contextValue = 'hapiConnection'; item.description = this.connections.selected()?.id === c.id ? 'selected' : undefined;
-            item.tooltip = c.url; item.iconPath = new vscode.ThemeIcon('plug'); return item;
+            item.tooltip = `${c.url}\nProxy: ${c.proxyMode || 'inherit'}`; item.iconPath = new vscode.ThemeIcon('plug'); return item;
         });
         if (!element.connectionId || element.sessionId) return [];
         try {

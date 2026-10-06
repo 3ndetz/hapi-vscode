@@ -3,6 +3,8 @@ const api = acquireVsCodeApi();
 const frames = new Map(); const profile = document.getElementById('profile');
 const conversation = document.getElementById('conversation');
 const close = document.getElementById('close-chat');
+const proxyMode = document.getElementById('proxy-mode');
+proxyMode.addEventListener('change', () => api.postMessage({ type: 'proxy', mode: proxyMode.value }));
 document.addEventListener('click', event => { const action = event.target.closest('[data-action]')?.dataset.action; if (action) api.postMessage({ type: 'action', action }); });
 profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: profile.value }));
 conversation.addEventListener('change', () => api.postMessage({ type: 'activate', id: conversation.value }));
@@ -24,6 +26,9 @@ window.addEventListener('message', event => {
     document.documentElement.style.colorScheme = state.syncTheme ? state.theme : 'normal';
     profile.replaceChildren(...state.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name; return option; }));
     profile.value = state.selected || '';
+    const activeProfile = state.profiles.find(p => p.id === state.entries.find(e => e.id === state.activeId)?.connectionId) || state.profiles.find(p => p.id === state.selected);
+    proxyMode.value = activeProfile?.proxyMode || 'inherit'; proxyMode.disabled = !activeProfile;
+    proxyMode.options[0].textContent = `Global setting (${state.globalProxy ? 'proxy' : 'direct'})`;
     const ids = new Set(state.entries.map(e => e.id));
     for (const [id, frame] of frames) if (!ids.has(id)) { frame.remove(); frames.delete(id); }
     conversation.replaceChildren(...state.entries.map(entry => {
