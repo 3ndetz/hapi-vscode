@@ -9,10 +9,13 @@ const { Sidebar } = require('./sidebar');
 const { groupSessions } = require('./folders');
 const { editorNetwork } = require('./network');
 const { WebsitePanel } = require('./website-panel');
+const { Metadata } = require('./metadata');
 
 class Manager {
     constructor(context) {
-        this.context = context; this.vscode = vscode; this.network = editorNetwork(vscode); this.connections = new Connections(context, this.network); this.chats = []; this.webPanels = []; this.websiteAdapters = new Map();
+        this.context = Object.create(context);
+        Object.defineProperty(this.context, 'globalState', { value: new Metadata(context.globalState, context.globalStorageUri) });
+        this.vscode = vscode; this.network = editorNetwork(vscode); this.connections = new Connections(this.context, this.network); this.chats = []; this.webPanels = []; this.websiteAdapters = new Map();
         context.subscriptions.push(this.network);
         this.sidebar = new Sidebar(this);
         context.subscriptions.push(this.sidebar, vscode.window.registerWebviewViewProvider('hapiChat.conversation', this.sidebar, { webviewOptions: { retainContextWhenHidden: true } }));

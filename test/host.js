@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { mockHub } = require('./mock-hub');
 const { mockProxy } = require('./mock-proxy');
 const os = require('node:os');
+const { Metadata } = require('../src/metadata');
 const waitFor = async predicate => {
     for (let n = 0; n < 600; n++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
     throw new Error('Timed out waiting for live chat updates.');
@@ -120,7 +121,8 @@ async function run() {
         assert.equal(separateForm.metadata().directory, '/workspace/other');
         await waitFor(() => b.requests.some(r => r.route === 'sessions/new' && r.query.directory === '/workspace/other'));
         for (const panel of [...manager.webPanels]) panel.panel.dispose();
-        const storedProfiles = manager.context.globalState.get('connections', []);
+        await manager.context.globalState.pending;
+        const storedProfiles = new Metadata(manager.context.globalState, manager.context.globalStorageUri).get('connections', []);
         assert.ok(storedProfiles.some(p => p.id === ca.id) && storedProfiles.some(p => p.id === cb.id), 'Native persisted storage retains both profiles after rapid edits and website navigation.');
         for (const r of [...a.requests, ...b.requests].filter(r => !r.route.startsWith('api/'))) {
             assert.equal(r.auth, undefined); assert.equal(r.query.token, undefined, 'Never pass keys in browser URLs.');
