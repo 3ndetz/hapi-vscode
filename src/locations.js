@@ -3,7 +3,7 @@ async function openAt(manager, item, target, operation = 'open', source) {
     if (!['left', 'window', 'tab'].includes(target) || !['open', 'copy', 'move', 'new'].includes(operation)) throw Error('Unknown chat destination.');
     const entry = source?.entries.find(e => e.id === source.activeId);
     if (operation === 'move' && !entry) return;
-    const request = operation === 'new' ? { connectionId: item?.connectionId, directory: item?.directory, sessionId: 'new', title: 'New chat' } : item;
+    const request = operation === 'new' ? { connectionId: item?.connectionId, directory: item?.directory || item?.workingDirectory, sessionId: 'new', title: 'New chat' } : item;
     if (operation === 'move' && target === 'left' && source === manager.sidebar) { await source.reveal(); return source; }
     let destination;
     if (target === 'left') {

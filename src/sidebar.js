@@ -114,8 +114,8 @@ class Sidebar {
             if (!session || session.id !== sessionId || !this.entries.includes(entry) || entry.sessionId !== sessionId || entry.titleRequest !== request) return;
             const name = title({ metadata: session.metadata });
             const directory = session.metadata?.path;
-            if (entry.title !== name || !entry.directory && typeof directory === 'string') {
-                entry.title = name; entry.directory ||= typeof directory === 'string' ? directory : undefined;
+            if (entry.title !== name || entry.workingDirectory !== directory) {
+                entry.title = name; entry.workingDirectory = typeof directory === 'string' ? directory : undefined;
                 this.save(); this.update();
             }
         } catch { /* The website remains usable if its metadata is unavailable. */ }

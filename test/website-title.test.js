@@ -12,8 +12,10 @@ test('native website navigation uses readable metadata and ignores stale or clos
     sidebar.entries.push(entry);
     const navigate = id => sidebar.receive({ type: 'navigate', id: entry.id, path: '/workflow/1/sessions/' + id });
     const slow = navigate('slow'), latest = navigate('latest');
-    pending.get('latest')({ session: { id: 'latest', metadata: { name: 'Current conversation' } } }); await latest;
+    pending.get('latest')({ session: { id: 'latest', metadata: { name: 'Current conversation', path: '/current-project' } } }); await latest;
     assert.equal(entry.title, 'Current conversation');
+    assert.equal(entry.workingDirectory, '/current-project');
+    assert.equal(entry.directory, undefined, 'Metadata does not change the saved website identity or navigation query.');
     pending.get('slow')({ session: { id: 'slow', metadata: { name: 'Outdated conversation' } } }); await slow;
     assert.equal(entry.title, 'Current conversation');
     assert.equal(new URL(entry.url).pathname, '/workflow/1/sessions/latest');
