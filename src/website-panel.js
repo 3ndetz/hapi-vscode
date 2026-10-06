@@ -21,6 +21,7 @@ class WebsitePanel extends Sidebar {
         return this;
     }
     reveal() { this.panel.reveal(this.panel.viewColumn, false); }
+    async adopt(entry) { await super.adopt(entry); this.adapterId = entry.adapterId; this.update(); }
     metadata() {
         const entry = this.entries[0];
         if (!entry) return;

@@ -40,6 +40,9 @@ class Manager {
             showChatPanel: () => this.sidebar.reveal(),
             openChatBeside: item => this.openWindow(item || this.currentWebsite()),
             newChatWindow: item => this.newWindow(item || this.currentWebsite()),
+            openInLeft: item => this.openAt(item || this.currentWebsite(), 'left'),
+            openInWindow: item => this.openAt(item || this.currentWebsite(), 'window'),
+            openInTab: item => this.openAt(item || this.currentWebsite(), 'tab'),
             copyLoginToken: item => this.copyLoginToken(item?.connectionId)
         };
         for (const [name, handler] of Object.entries(commands)) {
@@ -222,12 +225,13 @@ class Manager {
     attachWebsite(panel) {
         const chat = new WebsitePanel(this, panel); this.webPanels.push(chat); return chat;
     }
-    async openWindow(item = {}) {
+    openAt(item, target, operation = 'open', source) { return require('./locations').openAt(this, item, target, operation, source); }
+    async openWindow(item = {}, column = vscode.ViewColumn.Beside, transferredEntry) {
         const connection = item?.connectionId ? this.connections.find(item.connectionId) : this.connections.selected() || await this.pickConnection();
         if (!connection) return;
-        const panel = vscode.window.createWebviewPanel('hapiChat.website', `HAPI · ${connection.name}`, vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
+        const panel = vscode.window.createWebviewPanel('hapiChat.website', `HAPI · ${connection.name}`, column, { enableScripts: true, retainContextWhenHidden: true });
         const chat = this.attachWebsite(panel);
-        try { await chat.open(connection.id, item?.sessionId, item?.title || item?.label, item?.directory); return chat; }
+        try { if (transferredEntry) await chat.adopt(transferredEntry); else await chat.open(connection.id, item?.sessionId, item?.title || item?.label, item?.directory); return chat; }
         catch (error) { panel.dispose(); throw error; }
     }
     newWindow(item) { return this.openWindow({ connectionId: item?.connectionId, directory: item?.directory, sessionId: 'new', title: 'New chat' }); }

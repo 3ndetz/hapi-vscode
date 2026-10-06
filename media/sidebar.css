@@ -9,6 +9,10 @@ header{height:26px;box-sizing:border-box;display:flex;align-items:center;gap:4px
 .setting{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .actions{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--vscode-panel-border);padding-top:6px}
 .actions button{text-align:left}
+.actions details{border-bottom:1px solid var(--vscode-panel-border);padding:3px 0}
+.actions summary{cursor:pointer;padding:4px 2px}
+.actions details button{display:block;width:100%;padding-left:18px;margin:2px 0}
+.actions summary:focus-visible{outline:1px solid var(--vscode-focusBorder)}
 label{width:40px;flex-shrink:0;color:var(--vscode-descriptionForeground)}
 select{flex:1;min-width:0;color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border);padding:4px}
 button{cursor:pointer;border:0;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);padding:4px 7px;flex-shrink:0}

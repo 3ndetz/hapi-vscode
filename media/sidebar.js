@@ -17,6 +17,8 @@ font.addEventListener('change', () => {
     if (frame) frame.contentWindow.postMessage({ type: 'hapi-set-font-scale', scale: Number(font.value) }, new URL(frame.src).origin);
 });
 document.addEventListener('click', event => {
+    const destination = event.target.closest('[data-target]');
+    if (destination) { showSettings(false); api.postMessage({ type: 'location', target: destination.dataset.target, operation: destination.dataset.operation }); return; }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action) { showSettings(false); api.postMessage({ type: 'action', action }); }
 });

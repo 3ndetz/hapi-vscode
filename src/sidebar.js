@@ -18,7 +18,7 @@ class Sidebar {
 <div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select></div>
 <div class="setting"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div>
 <div class="setting"><label for="font-scale">Font</label><select id="font-scale" aria-label="HAPI font size" title="Native HAPI font size, saved only for this website instance." disabled><option value="" disabled>HAPI setting</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div>
-<div class="actions"><button data-action="openBeside">Open a copy beside</button><button data-action="newWindow">New chat window</button><button data-action="externalBrowser">Open in browser</button></div>
+<div class="actions">${['Open in', 'Move to', 'Copy to', 'New'].map((label, i) => `<details><summary>${label}</summary>${[['left', 'left tab'], ['window', 'new window'], ['tab', 'new tab']].map(([target, name]) => `<button data-operation="${['open', 'move', 'copy', 'new'][i]}" data-target="${target}">${i === 3 ? 'New chat in ' : ''}${name[0].toUpperCase() + name.slice(1)}</button>`).join('')}</details>`).join('')}<button data-action="externalBrowser">Open in browser</button></div>
 </section>
 <section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
@@ -29,6 +29,10 @@ class Sidebar {
     async receive(message) {
         const m = this.manager;
         if (message?.type === 'ready') return this.update();
+        if (message?.type === 'location') {
+            const active = this.entries.find(e => e.id === this.activeId);
+            return m.openAt(active, message.target, message.operation, this);
+        }
         if (message?.type === 'proxy') {
             const id = this.entries.find(e => e.id === this.activeId)?.connectionId || m.connections.selected()?.id;
             if (id) await m.setConnectionProxy(id, message.mode);
@@ -109,8 +113,28 @@ class Sidebar {
             // an old response to a different session or a closed website.
             if (!session || session.id !== sessionId || !this.entries.includes(entry) || entry.sessionId !== sessionId || entry.titleRequest !== request) return;
             const name = title({ metadata: session.metadata });
-            if (entry.title !== name) { entry.title = name; this.save(); this.update(); }
+            const directory = session.metadata?.path;
+            if (entry.title !== name || !entry.directory && typeof directory === 'string') {
+                entry.title = name; entry.directory ||= typeof directory === 'string' ? directory : undefined;
+                this.save(); this.update();
+            }
         } catch { /* The website remains usable if its metadata is unavailable. */ }
+    }
+    async adopt(entry) {
+        await this.restoreSaved();
+        await this.reveal();
+        await this.manager.connections.select(entry.connectionId);
+        const existing = this.entries.find(e => e.id === entry.id);
+        if (existing) this.closeEntry(existing);
+        this.entries.push({ ...entry }); this.activeId = entry.id;
+        this.save(); this.manager.updateSelection();
+    }
+    closeEntry(entry, release = true) {
+        if (!entry) return;
+        if (release) this.release(entry);
+        this.entries = this.entries.filter(e => e !== entry);
+        if (this.activeId === entry.id) this.activeId = this.entries.at(-1)?.id || '';
+        this.save(); this.update();
     }
     async reveal() {
         // A resolved view can reveal itself, including after being moved or hidden.

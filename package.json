@@ -2,7 +2,7 @@
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
   "description": "Full HAPI website chats in independent VS Code windows, saved hub profiles, grouped folders, automatic login and configurable proxy.",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "icon": "media/icon.png",
   "publisher": "3ndetz",
   "license": "MIT",
@@ -167,6 +167,21 @@
         "command": "hapiChat.connectionProxy",
         "title": "HAPI: Connection Proxy",
         "icon": "$(globe)"
+      },
+      {
+        "command": "hapiChat.openInLeft",
+        "title": "Open in left tab",
+        "category": "HAPI"
+      },
+      {
+        "command": "hapiChat.openInWindow",
+        "title": "Open in new window",
+        "category": "HAPI"
+      },
+      {
+        "command": "hapiChat.openInTab",
+        "title": "Open new tab",
+        "category": "HAPI"
       }
     ],
     "viewsContainers": {
@@ -305,6 +320,21 @@
           "command": "hapiChat.connectionProxy",
           "when": "view == hapiChat.sessions && viewItem == hapiConnection",
           "group": "connection@2"
+        },
+        {
+          "command": "hapiChat.openInLeft",
+          "when": "view == hapiChat.sessions && viewItem == hapiSession",
+          "group": "open@1"
+        },
+        {
+          "command": "hapiChat.openInWindow",
+          "when": "view == hapiChat.sessions && viewItem == hapiSession",
+          "group": "open@2"
+        },
+        {
+          "command": "hapiChat.openInTab",
+          "when": "view == hapiChat.sessions && viewItem == hapiSession",
+          "group": "open@3"
         }
       ]
     }

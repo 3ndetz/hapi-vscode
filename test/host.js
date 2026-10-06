@@ -155,6 +155,33 @@ async function run() {
         assert.equal(separateForm.metadata().directory, '/workspace/other');
         await waitFor(() => b.requests.some(r => r.route === 'sessions/new' && r.query.directory === '/workspace/other'));
         for (const panel of [...manager.webPanels]) panel.panel.dispose();
+        const locationItem = { connectionId: ca.id, sessionId: sa.id, title: 'Location test', directory: '/workspace/project' };
+        const groupsBeforeTab = vscode.window.tabGroups.all.length, activeColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
+        const tab = await vscode.commands.executeCommand('hapiChat.openInTab', locationItem);
+        assert.equal(tab.panel.viewColumn, activeColumn);
+        assert.equal(vscode.window.tabGroups.all.length, groupsBeforeTab, 'New tab reuses the active editor group.');
+        const groupChat = await vscode.commands.executeCommand('hapiChat.openInWindow', locationItem);
+        assert.equal(vscode.window.tabGroups.all.length, groupsBeforeTab + 1, 'New window creates a fresh editor group.');
+        assert.notEqual(groupChat.panel.viewColumn, tab.panel.viewColumn);
+        const movedOrigin = new URL(groupChat.entries[0].url).origin;
+        await groupChat.receive({ type: 'location', target: 'left', operation: 'move' });
+        assert.ok(!manager.webPanels.includes(groupChat), 'Move closes the source panel.');
+        const movedEntry = manager.sidebar.entries.find(e => e.id === manager.sidebar.activeId);
+        assert.equal(new URL(movedEntry.url).origin, movedOrigin, 'Move keeps browser preferences and drafts on their original origin.');
+        assert.equal((await fetch(movedEntry.url)).status, 200, 'Closing the source does not close the transferred adapter.');
+        const movedTab = await manager.sidebar.receive({ type: 'location', target: 'tab', operation: 'move' });
+        assert.ok(!manager.sidebar.entries.includes(movedEntry));
+        assert.equal(new URL(movedTab.entries[0].url).origin, movedOrigin);
+        const copy = await movedTab.receive({ type: 'location', target: 'tab', operation: 'copy' });
+        assert.ok(manager.webPanels.includes(movedTab));
+        assert.equal(copy.panel.viewColumn, movedTab.panel.viewColumn);
+        assert.notEqual(new URL(copy.entries[0].url).origin, movedOrigin, 'Copy owns an independent browser connection budget.');
+        for (const target of ['left', 'tab', 'window']) {
+            const form = await copy.receive({ type: 'location', target, operation: 'new' });
+            const formEntry = form.entries.find(e => e.id === form.activeId);
+            assert.equal(formEntry.sessionId, 'new'); assert.equal(formEntry.directory, '/workspace/project');
+        }
+        for (const panel of [...manager.webPanels]) panel.panel.dispose();
         await manager.context.globalState.pending;
         const storedProfiles = new Metadata(manager.context.globalState, manager.context.globalStorageUri).get('connections', []);
         assert.ok(storedProfiles.some(p => p.id === ca.id) && storedProfiles.some(p => p.id === cb.id), 'Native persisted storage retains both profiles after rapid edits and website navigation.');
