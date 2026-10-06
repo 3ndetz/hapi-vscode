@@ -21,4 +21,5 @@ jobs:
         with:
           name: isolated-editor-test-logs
           path: .local/host-test-*/user/logs/**/*.log
+          include-hidden-files: true
           retention-days: 3

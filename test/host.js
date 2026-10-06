@@ -45,6 +45,7 @@ async function run() {
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
         await manager.connections.select(ca.id); manager.updateSelection();
         const roots = await manager.getChildren(); const folders = await manager.getChildren(roots.find(r => r.connectionId === ca.id));
+        console.log('HOST CHECK: folder fixture', JSON.stringify({ sessions: [...a.sessions.values()].map(s => ({ id: s.id, path: s.metadata.path, machine: s.metadata.machineId })), folders: folders.map(f => ({ directory: f.directory, sessions: f.folderSessions?.length, label: f.label })) }));
         assert.equal(folders.length, 1); assert.equal(folders[0].directory, '/workspace');
         assert.equal((await manager.getChildren(folders[0])).length, 2);
         const beforeLogin = a.authCount;
