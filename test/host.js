@@ -156,6 +156,7 @@ async function run() {
         await waitFor(() => b.requests.some(r => r.route === 'sessions/new' && r.query.directory === '/workspace/other'));
         for (const panel of [...manager.webPanels]) panel.panel.dispose();
         const locationItem = { connectionId: ca.id, sessionId: sa.id, title: 'Location test', directory: '/workspace/project' };
+        await waitFor(() => vscode.window.tabGroups.all.length === 1);
         const groupsBeforeTab = vscode.window.tabGroups.all.length, activeColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
         const tab = await vscode.commands.executeCommand('hapiChat.openInTab', locationItem);
         assert.equal(tab.panel.viewColumn, activeColumn);
