@@ -16,3 +16,9 @@ jobs:
       - run: npm test
       - run: xvfb-run -a npm run test:host
       - run: npm run package
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: isolated-editor-test-logs
+          path: .local/host-test-*/user/logs/**/*.log
+          retention-days: 3

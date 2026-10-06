@@ -7,6 +7,7 @@ const waitFor = async predicate => {
     throw new Error('Timed out waiting for live chat updates.');
 };
 async function run() {
+    console.log('HOST CHECK: initializing the isolated editor.');
     const configuration = vscode.workspace.getConfiguration('hapiChat');
     assert.equal(configuration.get('chatMode'), 'web', 'The full website is the default interface.');
     const a = await mockHub('/workflow/1/', 'isolated-key-a'), b = await mockHub('/hub/', 'isolated-key-b');
@@ -15,6 +16,7 @@ async function run() {
         const extension = vscode.extensions.getExtension('3ndetz.hapi-chat');
         assert.ok(extension, 'Extension is installed in the development host.');
         manager = await extension.activate();
+        console.log('HOST CHECK: extension active.');
         const ca = await manager.connections.save({ name: 'Test Hub A', url: a.url }, a.token);
         const cb = await manager.connections.save({ name: 'Test Hub B', url: b.url }, b.token);
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
@@ -65,6 +67,7 @@ async function run() {
         assert.equal(manager.connections.selected().id, cb.id, 'The header follows the active conversation profile.');
         assert.ok(!b.requests.some(r => r.route.endsWith('/spawn')), 'Web new chat delegates to the website form.');
         const websiteA = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Independent A' });
+        console.log('HOST CHECK: first independent website window created.');
         const websiteDuplicate = await manager.openWindow({ connectionId: ca.id, sessionId: sa.id, label: 'Duplicate A' });
         const websiteB = await manager.openWindow({ connectionId: cb.id, sessionId: sb.id, label: 'Independent B' });
         await waitFor(() => manager.webPanels.length === 3 && manager.webPanels.every(p => p.panel.visible));
