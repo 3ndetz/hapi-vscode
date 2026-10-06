@@ -17,6 +17,8 @@ class Sidebar {
 <section id="settings" aria-label="Chat settings" hidden>
 <div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select></div>
 <div class="setting"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div>
+<div class="setting"><label for="font-scale">Font</label><select id="font-scale" aria-label="HAPI font size" title="Native HAPI font size, saved only for this website instance." disabled><option value="" disabled>HAPI setting</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div>
+<div class="actions"><button data-action="openBeside">Open a copy beside</button><button data-action="newWindow">New chat window</button><button data-action="externalBrowser">Open in browser</button></div>
 </section>
 <section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
@@ -53,6 +55,7 @@ class Sidebar {
         if (message?.type === 'action') {
             const active = this.entries.find(e => e.id === this.activeId);
             if (message.action === 'browser') { if (active) await require('./web').openWeb(m.vscode, m.connections.find(active.connectionId).url, active.sessionId); else await m.openBrowser(); }
+            if (message.action === 'externalBrowser') await require('./external-browser').openExternalBrowser(m, active);
             if (message.action === 'newChat') await m.newChat();
             if (message.action === 'addConnection') await m.configure();
             if (message.action === 'openHub') await m.openHub();
@@ -126,7 +129,7 @@ class Sidebar {
     update() {
         if (!this.view) return;
         const m = this.manager;
-        void this.view.webview.postMessage({ type: 'state', profiles: m.connections.list(), selected: this.panel ? this.entries[0]?.connectionId : m.connections.selected()?.id, entries: this.entries, activeId: this.activeId,
+        void this.view.webview.postMessage({ type: 'state', profiles: m.connections.list(), selected: this.entries.find(e => e.id === this.activeId)?.connectionId || m.connections.selected()?.id, entries: this.entries, activeId: this.activeId,
             panel: !!this.panel, navigation: this.panel ? this.metadata() : undefined,
             globalProxy: m.vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy', true),
             theme: [m.vscode.ColorThemeKind.Light, m.vscode.ColorThemeKind.HighContrastLight].includes(m.vscode.window.activeColorTheme.kind) ? 'light' : 'dark',

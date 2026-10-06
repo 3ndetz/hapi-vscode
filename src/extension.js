@@ -35,6 +35,7 @@ class Manager {
             changeChatMode: () => this.changeChatMode(),
             openHub: item => this.openHub(item?.connectionId),
             openBrowser: () => this.openBrowser(),
+            openExternalBrowser: () => require('./external-browser').openExternalBrowser(this, this.currentWebsite()),
             showChats: () => vscode.commands.executeCommand('hapiChat.sessions.focus'),
             showChatPanel: () => this.sidebar.reveal(),
             openChatBeside: item => this.openWindow(item || this.currentWebsite()),

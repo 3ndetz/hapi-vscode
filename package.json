@@ -2,7 +2,7 @@
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
   "description": "Full HAPI website chats in independent VS Code windows, saved hub profiles, grouped folders, automatic login and configurable proxy.",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "icon": "media/icon.png",
   "publisher": "3ndetz",
   "license": "MIT",
@@ -86,6 +86,11 @@
       }
     },
     "commands": [
+      {
+        "command": "hapiChat.openExternalBrowser",
+        "title": "HAPI: Open in Browser",
+        "icon": "$(link-external)"
+      },
       {
         "command": "hapiChat.addConnection",
         "title": "HAPI: Add Connection",

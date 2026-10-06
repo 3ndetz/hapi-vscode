@@ -3,6 +3,7 @@ const http = require('node:http');
 const { randomBytes, timingSafeEqual } = require('node:crypto');
 const { normalizeUrl } = require('./client');
 const { Network } = require('./network');
+const { websiteBridge } = require('./website-bridge');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 async function websiteProxy(client, preferredPort = 0) {
     const upstream = new URL(normalizeUrl(client.url));
@@ -53,7 +54,7 @@ async function websiteProxy(client, preferredPort = 0) {
                         if (h['content-encoding'] === 'gzip') bytes = zlib.gunzipSync(bytes);
                         if (h['content-encoding'] === 'br') bytes = zlib.brotliDecompressSync(bytes);
                         if (h['content-encoding'] === 'deflate') bytes = zlib.inflateSync(bytes);
-                        const bridge = `<script>(()=>{let last;setInterval(()=>{if(last!==location.pathname){last=location.pathname;parent.postMessage({type:'hapi-navigation',path:last},'*');}},300);})();</script>`;
+                        const bridge = `<script>(${websiteBridge.toString()})();</script>`;
                         const body = bytes.toString('utf8').split(upstream.origin).join(origin).replace(/<\/body>/i, bridge + '</body>');
                         delete h['content-length']; delete h['content-encoding']; delete h.etag;
                         h['cache-control'] = 'no-store';
