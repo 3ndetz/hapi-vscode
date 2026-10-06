@@ -20,7 +20,9 @@ async function run() {
         manager = await extension.activate();
         console.log('HOST CHECK: extension active.');
         const address = Object.values(os.networkInterfaces()).flat().find(n => !n.internal && n.family === 'IPv4')?.address;
-        const networkHub = await mockHub('/proxy-check/', 'proxy-check-key', address), proxy = await mockProxy();
+        const networkHub = await mockHub('/proxy-check/', 'proxy-check-key', address);
+        const target = new URL(networkHub.url).host, proxy = await mockProxy(target);
+        const routed = () => proxy.requests.filter(r => r.target === target).length;
         const httpConfig = vscode.workspace.getConfiguration('http');
         let networkProfile;
         try {
@@ -28,11 +30,12 @@ async function run() {
             await httpConfig.update('proxySupport', 'override', vscode.ConfigurationTarget.Global);
             networkProfile = await manager.connections.save({ name: 'Proxy routing fixture', url: networkHub.url }, networkHub.token);
             await manager.connections.client(networkProfile.id).sessions();
-            assert.ok(proxy.requests.length > 0, 'Extension requests honor VS Code http.proxy under the real extension host.');
-            const before = proxy.requests.length;
+            assert.ok(routed() > 0, 'Extension requests honor VS Code http.proxy under the real extension host.');
+            const before = routed();
             await configuration.update('useVSCodeProxy', false, vscode.ConfigurationTarget.Global);
+            await waitFor(() => vscode.workspace.getConfiguration('hapiChat').get('useVSCodeProxy') === false);
             await manager.connections.client(networkProfile.id).sessions();
-            assert.equal(proxy.requests.length, before, 'Explicit direct mode bypasses even VS Code proxySupport override.');
+            assert.equal(routed(), before, 'Explicit direct mode bypasses even VS Code proxySupport override.');
         } finally {
             if (networkProfile) await manager.connections.remove(networkProfile.id);
             await configuration.update('useVSCodeProxy', undefined, vscode.ConfigurationTarget.Global);
@@ -43,8 +46,11 @@ async function run() {
         const ca = await manager.connections.save({ name: 'Test Hub A', url: a.url }, a.token);
         const cb = await manager.connections.save({ name: 'Test Hub B', url: b.url }, b.token);
         const sa = a.addSession('same-session-id'), sb = b.addSession('same-session-id'), second = a.addSession('second');
+        await waitFor(() => manager.connections.find(ca.id) && manager.connections.find(cb.id));
         await manager.connections.select(ca.id); manager.updateSelection();
-        const roots = await manager.getChildren(); const folders = await manager.getChildren(roots.find(r => r.connectionId === ca.id));
+        const roots = await manager.getChildren(), root = roots.find(r => r.connectionId === ca.id);
+        assert.ok(root, 'The saved Hub A appears in the real tree.');
+        const folders = await manager.getChildren(root);
         console.log('HOST CHECK: folder fixture', JSON.stringify({ sessions: [...a.sessions.values()].map(s => ({ id: s.id, path: s.metadata.path, machine: s.metadata.machineId })), folders: folders.map(f => ({ directory: f.directory, sessions: f.folderSessions?.length, label: f.label })) }));
         assert.equal(folders.length, 1); assert.equal(folders[0].directory, '/workspace');
         assert.equal((await manager.getChildren(folders[0])).length, 2);

@@ -1,11 +1,12 @@
 'use strict';
 const http = require('node:http'), net = require('node:net');
-async function mockProxy() {
+async function mockProxy(allowedTarget) {
     const requests = [], sockets = new Set();
     const server = http.createServer((_, res) => res.writeHead(502).end());
     server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
     server.on('connect', (req, socket, head) => {
         requests.push({ target: req.url, auth: req.headers['proxy-authorization'] });
+        if (allowedTarget && req.url !== allowedTarget) { socket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n'); return; }
         const url = new URL('http://' + req.url);
         const remote = net.connect(Number(url.port), url.hostname);
         sockets.add(remote); remote.on('close', () => sockets.delete(remote));
