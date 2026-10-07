@@ -1,0 +1,20 @@
+'use strict';
+const { test } = require('node:test'), assert = require('node:assert/strict'), vm = require('node:vm');
+const { findBridge } = require('../src/find-bridge');
+test('embedded find trusts only its parent and leaves ordinary browser pages alone', () => {
+    const listeners = {}, messages = [], calls = []; let focused = 0, resets = 0;
+    const window = { addEventListener: (type, fn) => { listeners[type] = fn; }, find: (...args) => { calls.push(args); return args[0] === 'match'; }, getSelection: () => ({ removeAllRanges: () => resets++, addRange: () => {} }) };
+    const parent = { postMessage: m => messages.push(m) }, document = { activeElement: { focus: () => focused++ }, body: {}, createRange: () => ({ selectNodeContents: () => {}, collapse: () => {} }) };
+    vm.runInNewContext(`(${findBridge.toString()})()`, { parent, window, document });
+    const send = (data, source = parent) => listeners.message({ source, data });
+    send({ type: 'hapi-find-text', query: 'private' }, {}); assert.equal(calls.length, 0);
+    let prevented = 0; listeners.keydown({ key: 'f', ctrlKey: true, preventDefault: () => prevented++, stopPropagation: () => {} });
+    assert.equal(prevented, 1); assert.equal(messages.at(-1).type, 'hapi-find-open');
+    send({ type: 'hapi-find-text', query: 'match' }); assert.equal(messages.at(-1).found, true);
+    const before = resets; send({ type: 'hapi-find-text', query: 'match', backwards: true }); assert.equal(resets, before, 'Navigation preserves the previous match.'); assert.equal(calls.at(-1)[2], true);
+    send({ type: 'hapi-find-text', query: 'absent' }); assert.equal(messages.at(-1).found, false);
+    send({ type: 'hapi-find-text', query: '' }); assert.equal(calls.length, 3, 'Empty searches do not select arbitrary website text.');
+    send({ type: 'hapi-find-close' }); assert.equal(focused, 1);
+    const ordinary = { addEventListener: () => { throw Error('Ordinary browsers must not be modified.'); } };
+    vm.runInNewContext(`(${findBridge.toString()})()`, { parent: ordinary, window: ordinary });
+});

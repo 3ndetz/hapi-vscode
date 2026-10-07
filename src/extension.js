@@ -38,6 +38,7 @@ class Manager {
             openExternalBrowser: () => require('./external-browser').openExternalBrowser(this, this.currentWebsite()),
             showChats: () => vscode.commands.executeCommand('hapiChat.sessions.focus'),
             showChatPanel: () => this.sidebar.reveal(),
+            findInChat: target => (target === 'sidebar' ? this.sidebar : this.webPanels.find(chat => chat.panel.active) || this.sidebar).view?.webview.postMessage({ type: 'find' }),
             openChatBeside: item => this.openWindow(item || this.currentWebsite()),
             newChatWindow: item => this.newWindow(item || this.currentWebsite()),
             openInLeft: item => this.openAt(item || this.currentWebsite(), 'left'),

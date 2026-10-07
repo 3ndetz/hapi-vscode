@@ -2,7 +2,7 @@
   "name": "hapi-chat",
   "displayName": "HAPI Chat",
   "description": "Full HAPI website chats in independent VS Code windows, saved hub profiles, grouped folders, automatic login and configurable proxy.",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "icon": "media/icon.png",
   "publisher": "3ndetz",
   "license": "MIT",
@@ -182,6 +182,10 @@
         "command": "hapiChat.openInTab",
         "title": "Open new tab",
         "category": "HAPI"
+      },
+      {
+        "command": "hapiChat.findInChat",
+        "title": "HAPI: Find in Chat"
       }
     ],
     "viewsContainers": {
@@ -337,7 +341,22 @@
           "group": "open@3"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "hapiChat.findInChat",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "webviewFocus && activeWebviewPanelId == 'hapiChat.website' && focusedView != 'hapiChat.conversation'"
+      },
+      {
+        "command": "hapiChat.findInChat",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "webviewFocus && focusedView == 'hapiChat.conversation'",
+        "args": "sidebar"
+      }
+    ]
   },
   "scripts": {
     "test": "node --test test/*.test.js",
