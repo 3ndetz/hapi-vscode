@@ -29,6 +29,11 @@ class Sidebar {
     async receive(message) {
         const m = this.manager;
         if (message?.type === 'ready') return this.update();
+        if (message?.type === 'externalLink') {
+            const entry = this.entries.find(e => e.id === message.id);
+            if (entry) return require('./external-browser').openExternalLink(m, entry, message.url);
+            return;
+        }
         if (message?.type === 'location') {
             const active = this.entries.find(e => e.id === this.activeId);
             return m.openAt(active, message.target, message.operation, this);

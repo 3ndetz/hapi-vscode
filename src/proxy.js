@@ -54,7 +54,7 @@ async function websiteProxy(client, preferredPort = 0) {
                         if (h['content-encoding'] === 'gzip') bytes = zlib.gunzipSync(bytes);
                         if (h['content-encoding'] === 'br') bytes = zlib.brotliDecompressSync(bytes);
                         if (h['content-encoding'] === 'deflate') bytes = zlib.inflateSync(bytes);
-                        const bridge = `<script>(${websiteBridge.toString()})();</script>`;
+                        const bridge = `<script>(${websiteBridge.toString()})(${JSON.stringify(upstream.href).replace(/</g, '\\u003c')});</script>`;
                         const body = bytes.toString('utf8').split(upstream.origin).join(origin).replace(/<\/body>/i, bridge + '</body>');
                         delete h['content-length']; delete h['content-encoding']; delete h.etag;
                         h['cache-control'] = 'no-store';

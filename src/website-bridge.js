@@ -1,8 +1,43 @@
 'use strict';
 // Runs only in the native website. Font changes use HAPI's storage contract;
 // its native font-size variable renders text without scaling the iframe.
-function websiteBridge() {
+function websiteBridge(hubUrl) {
     if (parent === window) return;
+    const hub = new URL(hubUrl || location.href);
+    const local = new URL(location.href);
+    const inside = url => ['http:', 'https:'].includes(url.protocol) && [hub.origin, local.origin].includes(url.origin) && url.pathname.startsWith(hub.pathname);
+    const destination = value => {
+        const url = new URL(value, location.href);
+        return ['http:', 'https:'].includes(url.protocol) && url.origin === local.origin ? new URL(url.pathname + url.search + url.hash, hub.origin) : url;
+    };
+    const external = value => {
+        const url = destination(value);
+        if (!['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol) || inside(url)) return false;
+        parent.postMessage({ type: 'hapi-open-external', url: url.href }, '*');
+        return true;
+    };
+    const clicked = event => {
+        // React's media/dialog handlers run first. Do not replace their action.
+        if (event.defaultPrevented || event.button > 1) return;
+        const anchor = event.composedPath().find(node => node?.tagName === 'A' && node.href);
+        if (!anchor) return;
+        if (external(anchor.href)) { event.preventDefault(); return; }
+        const url = new URL(anchor.href, location.href);
+        if (url.origin === hub.origin && url.origin !== local.origin && inside(url)) {
+            anchor.href = new URL(url.pathname + url.search + url.hash, local.origin).href;
+        }
+    };
+    document.addEventListener('click', clicked);
+    document.addEventListener('auxclick', clicked);
+    const open = window.open;
+    window.open = function (url, ...args) {
+        if (url && external(url)) return null;
+        if (url) {
+            const internal = new URL(url, location.href);
+            if (inside(internal)) url = new URL(internal.pathname + internal.search + internal.hash, local.origin).href;
+        }
+        return open.call(this, url, ...args);
+    };
     // Every embedded instance has its own origin. Avoid repeating HAPI's
     // composer onboarding in each new chat, before React reads these keys.
     try {

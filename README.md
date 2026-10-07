@@ -79,6 +79,8 @@ Website preferences and drafts belong to each instance's local origin. Duplicate
 
 Embedded chats skip HAPI's one-time composer tips for scratchlists and rich mentions, so the “Got it” popovers do not repeat in each new window. The composer features remain available. Ordinary browser tabs keep HAPI's normal onboarding.
 
+External website links open in your system browser instead of replacing the embedded chat. Links to sessions and pages inside the configured hub remain in HAPI, including native attachment and image/video viewers. Another hub under a different URL prefix counts as external, even on the same hostname.
+
 **⚙ → Open in browser** (or **HAPI: Open in Browser**) opens the current session in the operating system's default browser with automatic login. A separate temporary loopback adapter consumes a scoped capability and authenticates through the saved profile. The real hub key never enters the URL. Closing the chat view leaves this browser adapter running; keep VS Code open to use it. Editing/removing its profile or shutting down the extension stops the adapter. Browser display preferences are independent of the embedded chat. If the adapter or saved-profile authentication is unavailable, the button opens the original hub URL for normal browser login.
 
 ## Proxy settings

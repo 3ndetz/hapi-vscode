@@ -32,9 +32,10 @@ const proxyMode = document.getElementById('proxy-mode');
 proxyMode.addEventListener('change', () => api.postMessage({ type: 'proxy', mode: proxyMode.value }));
 profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: profile.value }));
 window.addEventListener('message', event => {
-    if (['hapi-navigation', 'hapi-display'].includes(event.data?.type)) {
+    if (['hapi-navigation', 'hapi-display', 'hapi-open-external'].includes(event.data?.type)) {
         for (const [id, frame] of frames) if (event.source === frame.contentWindow && event.origin === new URL(frame.src).origin) {
             if (event.data.type === 'hapi-navigation' && typeof event.data.path === 'string') api.postMessage({ type: 'navigate', id, path: event.data.path });
+            if (event.data.type === 'hapi-open-external' && typeof event.data.url === 'string') api.postMessage({ type: 'externalLink', id, url: event.data.url });
             if (event.data.type === 'hapi-display' && Number.isFinite(event.data.fontScale)) {
                 frame.dataset.fontSupported = String(event.data.supported === true);
                 frame.dataset.fontScale = String(event.data.fontScale); updateFont();

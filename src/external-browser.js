@@ -31,4 +31,12 @@ async function openExternalBrowser(manager, entry) {
     } catch (error) { proxy.dispose(); manager.websiteAdapters.delete(key); throw error; }
     return { autoLogin: true };
 }
-module.exports = { openExternalBrowser };
+async function openExternalLink(manager, entry, value) {
+    const hub = manager.connections.find(entry.connectionId);
+    if (!hub || typeof value !== 'string') return;
+    const url = new URL(value), remote = new URL(hub.url), local = new URL(entry.url);
+    if (!['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol) || url.username || url.password) throw Error('Unsupported external link.');
+    if (url.origin === local.origin || url.origin === remote.origin && url.pathname.startsWith(remote.pathname)) return;
+    if (!(await manager.vscode.env.openExternal(manager.vscode.Uri.parse(url.href)))) throw Error('Unable to open the external link in your browser.');
+}
+module.exports = { openExternalBrowser, openExternalLink };

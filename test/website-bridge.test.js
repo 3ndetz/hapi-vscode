@@ -7,7 +7,7 @@ function page({ supported = true, topLevel = false, storageBlocked = false } = {
     const window = { addEventListener: (name, listener) => listeners.set(name, listener), dispatchEvent: event => events.push(event) };
     const parent = topLevel ? window : { postMessage: message => messages.push(message) };
     let report;
-    const context = { window, parent, document: { documentElement: { style: { getPropertyValue: key => properties.get(key) || '', setProperty: (key, value) => properties.set(key, value) } } },
+    const context = { URL, window, parent, document: { addEventListener: () => {}, documentElement: { style: { getPropertyValue: key => properties.get(key) || '', setProperty: (key, value) => properties.set(key, value) } } },
         location: { pathname: '/sessions/first', href: 'http://127.0.0.1:12345/sessions/first' }, localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => { if (storageBlocked) throw Error('Storage unavailable'); values.set(key, value); }, removeItem: key => values.delete(key) },
         StorageEvent: class { constructor(type, data) { Object.assign(this, { type }, data); } }, setInterval: callback => { report = callback; } };
     vm.runInNewContext(`(${websiteBridge.toString()})()`, context);
