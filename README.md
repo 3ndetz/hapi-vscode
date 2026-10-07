@@ -85,6 +85,8 @@ In chat settings, **Refresh page** reloads the active chat. **Copy link** copies
 
 Press **Ctrl+F** (**Cmd+F** on macOS) inside a chat to search the loaded page text. **Enter** goes to the next match, **Shift+Enter** to the previous match, and **Escape** closes search. Matches wrap around and ignore letter case. Search works in the sidebar and editor tabs; older messages must be loaded into the page before they can be found.
 
+Reloading the VS Code window restores editor chats in their existing groups without bringing background tabs to the front. VS Code owns the editor layout; sidebar chats are restored separately.
+
 **⚙ → Open in browser** (or **HAPI: Open in Browser**) opens the current session in the operating system's default browser with automatic login. A separate temporary loopback adapter consumes a scoped capability and authenticates through the saved profile. The real hub key never enters the URL. Closing the chat view leaves this browser adapter running; keep VS Code open to use it. Editing/removing its profile or shutting down the extension stops the adapter. Browser display preferences are independent of the embedded chat. If the adapter or saved-profile authentication is unavailable, the button opens the original hub URL for normal browser login.
 
 ## Proxy settings

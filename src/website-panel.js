@@ -11,14 +11,20 @@ class WebsitePanel extends Sidebar {
         this.resolveWebviewView(panel);
         panel.onDidDispose(() => { this.dispose(); manager.webPanels = manager.webPanels.filter(p => p !== this); }, undefined, manager.context.subscriptions);
     }
-    async open(...args) {
-        if (this.entries[0]?.connectionId !== args[0]) this.release(this.entries[0]);
+    async open(connectionId, sessionId, label, directory, restoring = false) {
+        if (this.entries[0]?.connectionId !== connectionId) this.release(this.entries[0]);
         this.entries = [];
-        await super.open(...args.slice(0, 4), undefined, false, this.adapterId);
+        await super.open(connectionId, sessionId, label, directory, undefined, restoring, this.adapterId);
         const entry = this.entries[0];
         this.panel.title = `${entry.title} · ${this.manager.connections.find(entry.connectionId).name}`;
         this.update();
         return this;
+    }
+    async restore(state) {
+        if (typeof state.adapterId === 'string' && /^[a-f0-9-]{36}$/i.test(state.adapterId)) this.adapterId = state.adapterId;
+        // VS Code restores the group and tab selection. Revealing an inactive
+        // panel here can move it into the active group while viewColumn is unset.
+        return this.open(state.connectionId, state.sessionId, typeof state.title === 'string' ? state.title : undefined, typeof state.directory === 'string' ? state.directory : undefined, true);
     }
     reveal() { this.panel.reveal(this.panel.viewColumn, false); }
     async adopt(entry) { await super.adopt(entry); this.adapterId = entry.adapterId; this.update(); }

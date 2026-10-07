@@ -14,7 +14,7 @@ test('independent website panels duplicate chats, pin profiles, retain safe navi
     const makePanel = () => {
         let disposed;
         const panel = { active: true, visible: true, viewColumn: 2, webview: { cspSource: 'https://resource.example', asWebviewUri: s => s, onDidReceiveMessage: () => {}, postMessage: async state => { panel.state = state; } },
-            onDidDispose: f => disposed = f, onDidChangeViewState: () => {}, reveal: () => {}, dispose: () => disposed?.() };
+            onDidDispose: f => disposed = f, onDidChangeViewState: () => {}, reveals: [], reveal: (...args) => panel.reveals.push(args), dispose: () => disposed?.() };
         const chat = new WebsitePanel(manager, panel); manager.webPanels.push(chat); return chat;
     };
     const first = makePanel(), duplicate = makePanel(), other = makePanel();
@@ -28,6 +28,17 @@ test('independent website panels duplicate chats, pin profiles, retain safe navi
         assert.ok(!JSON.stringify(first.panel.state).includes(a.token));
         assert.ok(!JSON.stringify(first.metadata()).includes('token='));
         assert.ok(!saved.has('sidebarTabs'), 'Panels do not overwrite the independently persisted sidebar.');
+        // During deserialize an inactive panel may not yet expose viewColumn.
+        // Revealing it then would target the active group and move the tab.
+        const navigation = duplicate.metadata(), restored = makePanel();
+        restored.panel.viewColumn = undefined; restored.panel.active = false;
+        await restored.restore(navigation);
+        assert.deepEqual(restored.panel.reveals, [], 'Restoring leaves group placement and selection to VS Code.');
+        assert.equal(restored.panel.active, false);
+        assert.equal(restored.metadata().adapterId, navigation.adapterId);
+        assert.equal(restored.metadata().sessionId, navigation.sessionId);
+        assert.ok(!saved.has('sidebarTabs'), 'Restored editor tabs stay separate from sidebar persistence.');
+        manager.webPanels = manager.webPanels.filter(p => p !== restored);
         const navigated = a.addSession('navigated'); navigated.metadata.name = 'UNIONCLEF-HARD';
         await first.receive({ type: 'navigate', id: first.entries[0].id, path: '/sessions/navigated' });
         assert.equal(first.metadata().sessionId, 'navigated'); assert.equal(duplicate.metadata().sessionId, 'same');
