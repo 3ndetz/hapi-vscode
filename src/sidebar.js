@@ -18,7 +18,7 @@ class Sidebar {
 <div class="setting"><label for="profile">Hub</label><select id="profile" aria-label="Saved HAPI profile"></select></div>
 <div class="setting"><label for="proxy-mode">Proxy</label><select id="proxy-mode" aria-label="Proxy mode for this hub" title="Saved for this hub. Applies to API and embedded website."><option value="inherit">Global setting</option><option value="proxy">Use VS Code proxy</option><option value="direct">Direct connection</option></select></div>
 <div class="setting"><label for="font-scale">Font</label><select id="font-scale" aria-label="HAPI font size" title="Native HAPI font size, saved only for this website instance." disabled><option value="" disabled>HAPI setting</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div>
-<div class="actions">${['Open in', 'Move to', 'Copy to', 'New'].map((label, i) => `<details><summary>${label}</summary>${[['left', 'left tab'], ['window', 'new window'], ['tab', 'new tab']].map(([target, name]) => `<button data-operation="${['open', 'move', 'copy', 'new'][i]}" data-target="${target}">${i === 3 ? 'New chat in ' : ''}${name[0].toUpperCase() + name.slice(1)}</button>`).join('')}</details>`).join('')}<button data-action="externalBrowser">Open in browser</button></div>
+<div class="actions"><button data-action="reloadChat">Refresh page</button><button data-action="copyLink">Copy link</button>${['Open in', 'Move to', 'Copy to', 'New'].map((label, i) => `<details><summary>${label}</summary>${[['left', 'left tab'], ['window', 'new window'], ['tab', 'new tab']].map(([target, name]) => `<button data-operation="${['open', 'move', 'copy', 'new'][i]}" data-target="${target}">${i === 3 ? 'New chat in ' : ''}${name[0].toUpperCase() + name.slice(1)}</button>`).join('')}</details>`).join('')}<button data-action="externalBrowser">Open in browser</button></div>
 </section>
 <section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
@@ -73,6 +73,7 @@ class Sidebar {
                 await m.vscode.commands.executeCommand('hapiChat.sessions.focus');
             }
             if (message.action === 'reloadChat' && active) { active.reload = (active.reload || 0) + 1; this.update(); }
+            if (message.action === 'copyLink' && active) await m.vscode.env.clipboard.writeText(webUrl(m.connections.find(active.connectionId).url, active.sessionId));
             if (message.action === 'openBeside') await m.openWindow(active);
             if (message.action === 'newWindow') await m.newWindow(active);
         }
