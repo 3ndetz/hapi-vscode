@@ -55,7 +55,10 @@ test('sidebar profile follows the active chat, keeps other hubs loaded, and rest
         await sidebar.receive({ type: 'close', id: first.id });
         assert.equal(state.selected, b.id); assert.equal(sidebar.entries.length, 1);
         sidebar.remove(b.id); assert.equal(sidebar.entries.length, 0); assert.equal(sidebar.proxies.has(b.id), false);
+        const restoreStates = [];
+        view.webview.postMessage = async s => { state = s; restoreStates.push(s.activeId); };
         await values.set('sidebarTabs', restored); await sidebar.restore();
+        assert.deepEqual(restoreStates, [first.id], 'Restore must publish only the final active chat, not launch every saved website.');
         assert.equal(sidebar.entries.length, 2); assert.equal(sidebar.activeId, first.id); assert.equal(state.selected, a.id);
         await sidebar.open(a.id, 'new'); const newId = sidebar.activeId; await sidebar.open(a.id, 'new');
         assert.notEqual(sidebar.activeId, newId, 'New chat always creates a fresh form, even after the old website navigates to its spawned session.');

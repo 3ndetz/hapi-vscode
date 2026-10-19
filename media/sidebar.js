@@ -1,6 +1,7 @@
 'use strict';
 const api = acquireVsCodeApi();
 const frames = new Map(); const profile = document.getElementById('profile');
+const frameCache = new HapiFrameCache(frames);
 const settings = document.getElementById('settings'), toggle = document.getElementById('settings-toggle');
 const font = document.getElementById('font-scale');
 let activeId = '';
@@ -47,8 +48,9 @@ const proxyMode = document.getElementById('proxy-mode');
 proxyMode.addEventListener('change', () => api.postMessage({ type: 'proxy', mode: proxyMode.value }));
 profile.addEventListener('change', () => api.postMessage({ type: 'profile', id: profile.value }));
 window.addEventListener('message', event => {
-    if (['hapi-navigation', 'hapi-display', 'hapi-open-external', 'hapi-find-open', 'hapi-find-result'].includes(event.data?.type)) {
+    if (['hapi-navigation', 'hapi-display', 'hapi-open-external', 'hapi-find-open', 'hapi-find-result', 'hapi-can-suspend'].includes(event.data?.type)) {
         for (const [id, frame] of frames) if (event.source === frame.contentWindow && event.origin === new URL(frame.src).origin) {
+            if (event.data.type === 'hapi-can-suspend') { frameCache.acknowledge(id, event.data, activeId); return; }
             if (id === activeId && event.data.type === 'hapi-find-open') openFind();
             if (id === activeId && event.data.type === 'hapi-find-result' && event.data.query === findInput.value) findStatus.textContent = !event.data.supported ? 'Search unavailable' : !event.data.query ? '' : event.data.found ? 'Found' : 'No results';
             if (event.data.type === 'hapi-navigation' && typeof event.data.path === 'string') api.postMessage({ type: 'navigate', id, path: event.data.path });
@@ -84,6 +86,8 @@ window.addEventListener('message', event => {
     for (const [id, frame] of frames) if (!ids.has(id)) { frame.remove(); frames.delete(id); }
     for (const entry of state.entries) {
         let frame = frames.get(entry.id);
+        // Restoring navigation metadata must not launch every saved website.
+        if (!frame && entry.id !== activeId) continue;
         if (!frame) {
             frame = document.createElement('iframe'); frame.title = entry.title;
             frame.allow = 'clipboard-read; clipboard-write; microphone; camera; fullscreen';
@@ -94,7 +98,10 @@ window.addEventListener('message', event => {
         frame.hidden = entry.id !== state.activeId;
         frame.title = entry.title;
     }
+    frameCache.touch(activeId); frameCache.trim(activeId);
     updateFont();
     document.getElementById('empty').hidden = state.entries.length > 0;
 });
 api.postMessage({ type: 'ready' });
+// Recheck busy hidden pages once their draft or terminal may have been closed.
+setInterval(() => frameCache.trim(activeId), 30000);

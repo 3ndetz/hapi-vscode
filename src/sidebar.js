@@ -20,7 +20,7 @@ class Sidebar {
 <div class="setting"><label for="font-scale">Font</label><select id="font-scale" aria-label="HAPI font size" title="Native HAPI font size, saved only for this website instance." disabled><option value="" disabled>HAPI setting</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div>
 <div class="actions"><button data-action="reloadChat">Refresh page</button><button data-action="copyLink">Copy link</button>${['Open in', 'Move to', 'Copy to', 'New'].map((label, i) => `<details><summary>${label}</summary>${[['left', 'left tab'], ['window', 'new window'], ['tab', 'new tab']].map(([target, name]) => `<button data-operation="${['open', 'move', 'copy', 'new'][i]}" data-target="${target}">${i === 3 ? 'New chat in ' : ''}${name[0].toUpperCase() + name.slice(1)}</button>`).join('')}</details>`).join('')}<button data-action="externalBrowser">Open in browser</button></div>
 </section><section id="find-bar" aria-label="Find in chat" hidden><input id="find-input" type="search" placeholder="Find in chat" aria-label="Find in chat"><span id="find-status" role="status" aria-live="polite"></span><button id="find-previous" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button><button id="find-next" title="Next match (Enter)" aria-label="Next match">↓</button><button id="find-close" title="Close search (Escape)" aria-label="Close search">×</button></section>
-<section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
+<section id="empty"><h2>Your chats open here</h2><p>Choose a saved Hub above, or select a chat in HAPI Connections on the left.</p></section><main id="frames"></main><script nonce="${nonce}" src="${asset('frame-cache.js')}"></script><script nonce="${nonce}" src="${asset('sidebar.js')}"></script></body></html>`;
         view.webview.onDidReceiveMessage(message => { void this.receive(message).catch(error => vscode.window.showErrorMessage(error.message)); }, undefined, this.manager.context.subscriptions);
         view.onDidDispose(() => { this.view = undefined; }, undefined, this.manager.context.subscriptions);
         (view.onDidChangeVisibility || view.onDidChangeViewState).call(view, () => { if (view.visible) this.update(); }, undefined, this.manager.context.subscriptions);
@@ -102,6 +102,7 @@ class Sidebar {
         if (directory) remote.searchParams.set('directory', directory);
         if (!this.entries.some(e => e.id === id)) this.entries.push({ id, connectionId, sessionId, directory, instanceId, adapterId, title: label && label !== sessionId ? label : sessionId === 'new' ? 'New chat' : sessionId ? 'Chat' : connection.name, url: proxy.loginUrl(remote.href) });
         else if (!existing && this.entries.find(e => e.id === id).adapterId !== adapterId) this.release({ connectionId, adapterId });
+        if (this.restoringBatch) return;
         this.activeId = id;
         this.save();
         await m.connections.select(connectionId); m.updateSelection();
@@ -157,7 +158,7 @@ class Sidebar {
         this.view.show(false);
     }
     update() {
-        if (!this.view) return;
+        if (!this.view || this.restoringBatch) return;
         const m = this.manager;
         void this.view.webview.postMessage({ type: 'state', profiles: m.connections.list(), selected: this.entries.find(e => e.id === this.activeId)?.connectionId || m.connections.selected()?.id, entries: this.entries, activeId: this.activeId,
             panel: !!this.panel, navigation: this.panel ? this.metadata() : undefined,
@@ -180,14 +181,18 @@ class Sidebar {
         const state = this.manager.context.globalState.get('sidebarTabs');
         if (!Array.isArray(state?.entries)) return;
         const selected = this.manager.connections.selected()?.id;
-        for (const entry of state.entries) {
-            if (!this.manager.connections.find(entry.connectionId) || entry.sessionId !== undefined && typeof entry.sessionId !== 'string') continue;
-            await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined, true, typeof entry.adapterId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.adapterId) ? entry.adapterId : undefined);
-        }
-        if (this.entries.some(e => e.id === state.activeId)) this.activeId = state.activeId;
-        else if (Number.isInteger(state.activeIndex) && this.entries[state.activeIndex]) this.activeId = this.entries[state.activeIndex].id;
-        const active = this.entries.find(e => e.id === this.activeId);
-        if (active || selected) await this.manager.connections.select(active?.connectionId || selected);
+        this.restoringBatch = true;
+        try {
+            for (const entry of state.entries) {
+                if (!this.manager.connections.find(entry.connectionId) || entry.sessionId !== undefined && typeof entry.sessionId !== 'string') continue;
+                await this.open(entry.connectionId, entry.sessionId, typeof entry.title === 'string' ? entry.title : undefined, typeof entry.directory === 'string' ? entry.directory : undefined, typeof entry.instanceId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.instanceId) ? entry.instanceId : undefined, true, typeof entry.adapterId === 'string' && /^[a-f0-9-]{36}$/i.test(entry.adapterId) ? entry.adapterId : undefined);
+            }
+            if (this.entries.some(e => e.id === state.activeId)) this.activeId = state.activeId;
+            else if (Number.isInteger(state.activeIndex) && this.entries[state.activeIndex]) this.activeId = this.entries[state.activeIndex].id;
+            else this.activeId = this.entries.at(-1)?.id || '';
+            const active = this.entries.find(e => e.id === this.activeId);
+            if (active || selected) await this.manager.connections.select(active?.connectionId || selected);
+        } finally { this.restoringBatch = false; }
         this.save(); this.manager.updateSelection();
     }
     remove(connectionId) {

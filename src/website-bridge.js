@@ -72,6 +72,15 @@ function websiteBridge(hubUrl) {
         if (display !== signature) { display = signature; parent.postMessage(next, '*'); }
     };
     window.addEventListener('message', event => {
+        if (event.source === parent && event.data?.type === 'hapi-suspend-request' && typeof event.data.requestId === 'string') {
+            // Never unload an unsent composer, upload, recording, dialog or
+            // terminal. Remote agent execution itself belongs to the runner.
+            const fields = document.querySelectorAll('textarea, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), [contenteditable="true"]');
+            const dirty = [...fields].some(field => (field.value ?? field.textContent ?? '').trim() !== '' || field.files?.length);
+            const busy = document.querySelector('.xterm, [role="dialog"], audio, video, canvas, [data-slot="attachment"], [aria-label*="Remove attachment"], [aria-label*="Remove file"]');
+            parent.postMessage({ type: 'hapi-can-suspend', requestId: event.data.requestId, safe: !dirty && !busy }, '*');
+            return;
+        }
         if (event.source !== parent || event.data?.type !== 'hapi-set-font-scale' || !scales.includes(event.data.scale)) return;
         if (!document.documentElement.style.getPropertyValue('--app-font-scale')) return;
         try {

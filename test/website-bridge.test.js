@@ -2,18 +2,25 @@
 const { test } = require('node:test'), assert = require('node:assert/strict'), vm = require('node:vm');
 const { websiteBridge } = require('../src/website-bridge');
 
-function page({ supported = true, topLevel = false, storageBlocked = false } = {}) {
+function page({ supported = true, topLevel = false, storageBlocked = false, fields = [], busy = false } = {}) {
     const messages = [], events = [], values = new Map(), properties = new Map(supported ? [['--app-font-scale', '1']] : []), listeners = new Map();
     const window = { addEventListener: (name, listener) => listeners.set(name, listener), dispatchEvent: event => events.push(event) };
     const parent = topLevel ? window : { postMessage: message => messages.push(message) };
     let report;
-    const context = { URL, window, parent, document: { addEventListener: () => {}, documentElement: { style: { getPropertyValue: key => properties.get(key) || '', setProperty: (key, value) => properties.set(key, value) } } },
+    const context = { URL, window, parent, document: { querySelectorAll: () => fields, querySelector: () => busy ? {} : null, addEventListener: () => {}, documentElement: { style: { getPropertyValue: key => properties.get(key) || '', setProperty: (key, value) => properties.set(key, value) } } },
         location: { pathname: '/sessions/first', href: 'http://127.0.0.1:12345/sessions/first' }, localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => { if (storageBlocked) throw Error('Storage unavailable'); values.set(key, value); }, removeItem: key => values.delete(key) },
         StorageEvent: class { constructor(type, data) { Object.assign(this, { type }, data); } }, setInterval: callback => { report = callback; } };
     vm.runInNewContext(`(${websiteBridge.toString()})()`, context);
-    return { values, properties, events, messages, report: () => report?.(),
+    return { values, properties, events, messages, report: () => report?.(), suspend: (source = parent) => listeners.get('message')?.({ source, data: { type: 'hapi-suspend-request', requestId: 'test' } }),
         send: (scale, source = parent) => listeners.get('message')?.({ source, data: { type: 'hapi-set-font-scale', scale } }) };
 }
+test('website suspension protects unsent text, uploads, dialogs, media and terminals', () => {
+    for (const input of [{ fields: [{ value: 'draft' }] }, { fields: [{ textContent: 'rich draft' }] }, { fields: [{ value: '', files: [1] }] }, { busy: true }]) {
+        const p = page(input); p.suspend(); assert.equal(p.messages.at(-1).safe, false);
+    }
+    const p = page(); p.suspend(); assert.equal(p.messages.at(-1).safe, true);
+    const count = p.messages.length; p.suspend({}); assert.equal(p.messages.length, count, 'Only the parent may ask to suspend.');
+});
 
 test('font bridge uses native HAPI preferences per website, without changing other windows or top-level browsers', () => {
     const a = page(), b = page(), external = page({ topLevel: true });
